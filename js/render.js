@@ -17,42 +17,62 @@ function loadAssets(cb) {
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
+// Scale canvas for retina/HiDPI — keeps CSS size at 360×640 but renders at full pixel density
+const DPR = window.devicePixelRatio || 1;
+canvas.width  = CW * DPR;
+canvas.height = CH * DPR;
+canvas.style.width  = CW + 'px';
+canvas.style.height = CH + 'px';
+ctx.scale(DPR, DPR);
+
 // ── DRAW FUNCTIONS ───────────────────────────────────────
+function safeDrawImage(img, ...args) {
+  if (img && img.naturalWidth > 0) ctx.drawImage(img, ...args);
+}
+
 function drawBackground() {
   ctx.fillStyle = '#2e2e38';
   ctx.fillRect(0, 0, CW, CH);
-  ctx.drawImage(IMG.bgField, 0, 0, CW, CH);
+  safeDrawImage(IMG.bgField, 0, 0, CW, CH);
 }
 
 function drawEnemies() {
   state.enemies.forEach(e => {
     const { x, y } = enemyXY(e.col, e.row);
     const t = ENEMY_TYPES[e.typeIdx];
-    ctx.drawImage(IMG[t.sprite], x, y, ENEMY_W, ENEMY_H);
-    // HP bar
-    const bw = ENEMY_W, bh = 5, by = y + ENEMY_H + 1;
-    ctx.fillStyle = 'rgba(0,0,0,.55)';
-    ctx.fillRect(x, by, bw, bh);
-    const ratio = e.hp / e.maxHp;
-    ctx.fillStyle = ratio > .5 ? '#4caf50' : ratio > .25 ? '#ff9800' : '#f44336';
-    ctx.fillRect(x, by, bw * ratio, bh);
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 6px Roboto';
+    safeDrawImage(IMG[t.sprite], x, y, ENEMY_W, ENEMY_H);
+    // HP pill badge — centered, lower third of sprite
+    ctx.save();
+    const hpText = `${e.hp}/${e.maxHp}`;
+    ctx.font = 'bold 9px Roboto';
     ctx.textAlign = 'center';
-    ctx.fillText(`${e.hp}/${e.maxHp}`, x + bw / 2, by + bh - 1);
-    // Dmg badge
-    const dmgLabel = t.dmgMin === t.dmgMax ? `${t.dmgMin}` : `${t.dmgMin}-${t.dmgMax}`;
-    ctx.fillStyle = 'rgba(0,0,0,.65)';
-    ctx.fillRect(x, y, 18, 9);
-    ctx.fillStyle = '#ff9944';
-    ctx.font = 'bold 6px Roboto';
-    ctx.textAlign = 'left';
-    ctx.fillText(dmgLabel, x + 1, y + 7);
+    const tw = ctx.measureText(hpText).width;
+    const pillW = tw + 8;
+    const pillH = 11;
+    const pillX = x + ENEMY_W / 2 - pillW / 2;
+    const pillY = y + ENEMY_H - pillH - 1;
+    const r = pillH / 2;
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    ctx.beginPath();
+    ctx.moveTo(pillX + r, pillY);
+    ctx.lineTo(pillX + pillW - r, pillY);
+    ctx.arc(pillX + pillW - r, pillY + r, r, -Math.PI / 2, 0);
+    ctx.lineTo(pillX + pillW, pillY + pillH - r);
+    ctx.arc(pillX + pillW - r, pillY + pillH - r, r, 0, Math.PI / 2);
+    ctx.lineTo(pillX + r, pillY + pillH);
+    ctx.arc(pillX + r, pillY + pillH - r, r, Math.PI / 2, Math.PI);
+    ctx.lineTo(pillX, pillY + r);
+    ctx.arc(pillX + r, pillY + r, r, Math.PI, -Math.PI / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillText(hpText, x + ENEMY_W / 2, pillY + pillH - 2);
+    ctx.restore();
   });
 }
 
 function drawPlayer() {
-  ctx.drawImage(IMG.player, PLAYER_X - PLAYER_W / 2, PLAYER_Y - PLAYER_H + 10, PLAYER_W, PLAYER_H);
+  safeDrawImage(IMG.player, PLAYER_X - PLAYER_W / 2, PLAYER_Y - PLAYER_H + 10, PLAYER_W, PLAYER_H);
 }
 
 function drawAimLine() {
@@ -83,17 +103,28 @@ function drawAimLine() {
 function drawBall() {
   if (!state.ballActive || !state.ball) return;
   const { x, y } = state.ball;
-  // Guard against broken images — drawImage throws on naturalWidth=0
+  // Trail — fading dots behind ball
+  state.trail.forEach((p, i) => {
+    const a = (i / state.trail.length) * 0.35;
+    const r = BALL_R * 0.5 * (i / state.trail.length);
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = '#ff8800';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
+  // Flame + ball — guard against broken images
   if (IMG.flame && IMG.flame.naturalWidth > 0) {
     ctx.save();
     ctx.globalAlpha = 0.7;
-    ctx.drawImage(IMG.flame, x - 10, y - 10, 20, 40);
+    safeDrawImage(IMG.flame, x - 10, y - 10, 20, 40);
     ctx.restore();
   }
   if (IMG.fireball && IMG.fireball.naturalWidth > 0) {
-    ctx.drawImage(IMG.fireball, x - BALL_R, y - BALL_R, BALL_R * 2, BALL_R * 2);
+    safeDrawImage(IMG.fireball, x - BALL_R, y - BALL_R, BALL_R * 2, BALL_R * 2);
   } else {
-    // Fallback: solid orange circle
     ctx.fillStyle = '#ff8800';
     ctx.beginPath();
     ctx.arc(x, y, BALL_R, 0, Math.PI * 2);
@@ -151,14 +182,28 @@ function render() {
   ctx.clearRect(0, 0, CW, CH);
   drawBackground();
   if (state.screen === 'arena' || state.screen === 'bet') {
-    drawDivider();
-    drawEnemies();
-    drawPlayer();   // always draw player first — ball/effects render on top
-    if (state.screen === 'arena') {
-      drawAimLine();
-      drawBall();
-      drawHitFlash();
+    // Screen shake — random offset that decays each frame
+    let sx = 0, sy = 0;
+    if (state.shake > 0) {
+      const intensity = state.shake * 0.5;
+      sx = (Math.random() - 0.5) * intensity;
+      sy = (Math.random() - 0.5) * intensity;
+      state.shake--;
     }
-    drawPopups();
+    ctx.save();
+    ctx.translate(sx, sy);
+    try {
+      drawDivider();
+      drawEnemies();
+      drawPlayer();
+      if (state.screen === 'arena') {
+        drawAimLine();
+        drawBall();
+        drawHitFlash();
+      }
+      drawPopups();
+    } finally {
+      ctx.restore();
+    }
   }
 }

@@ -19,6 +19,14 @@ function resetState() {
     popups:        [],
     hitFlash:      null,
     pendingSpawns: 0,
+    // New fields
+    trail:         [],      // ball trail positions
+    shake:         0,       // screen shake frames remaining
+    winStreak:     0,       // consecutive shots with a kill
+    killsThisShot: 0,       // kills in current shot
+    round:         0,       // rounds completed (advances)
+    advancing:     false,   // true while advance animation plays
+    advanceOffset: 0,       // current y offset during advance animation (0→CELL_H)
   };
 }
 
@@ -53,8 +61,8 @@ function initArena() {
 // ── GEOMETRY ─────────────────────────────────────────────
 function enemyXY(col, row) {
   return {
-    x: FL + col * CELL_W + (CELL_W - ENEMY_W) / 2,
-    y: ENEMY_START_Y + row * CELL_H + (CELL_H - ENEMY_H) / 2,
+    x: GRID_LEFT + col * CELL_W,
+    y: ENEMY_START_Y + row * CELL_H + (state.advanceOffset || 0),
   };
 }
 
@@ -68,12 +76,18 @@ function enemyRect(e) {
   };
 }
 
+// Ball speed increases 0.5px/s per round, capped at 15
+function ballSpeed() {
+  return Math.min(BALL_SPEED + state.round * 0.5, 15);
+}
+
 function calcTrajectory(sx, sy, tx, ty) {
   const dx = tx - sx, dy = ty - sy;
   const len = Math.sqrt(dx * dx + dy * dy);
   if (len < 1) return [];
-  let vx = (dx / len) * BALL_SPEED;
-  let vy = (dy / len) * BALL_SPEED;
+  const spd = ballSpeed();
+  let vx = (dx / len) * spd;
+  let vy = (dy / len) * spd;
   let x = sx, y = sy;
   const pts = [{ x, y }];
   for (let i = 0; i < AIM_STEPS; i++) {
@@ -89,17 +103,20 @@ function calcTrajectory(sx, sy, tx, ty) {
 
 // ── PHYSICS ──────────────────────────────────────────────
 function shoot() {
-  if (state.ballActive) return;
+  if (state.ballActive || state.advancing) return;
   const bet = BET_LEVELS[state.betIdx];
   if (state.balance < bet) { setBanner('Not enough NGN!'); return; }
   state.balance -= bet;
   state.ngnSpent += bet;
   state.shotsFired++;
+  state.killsThisShot = 0;
+  state.trail = [];
   updateWallet();
   const sx = PLAYER_X, sy = PLAYER_Y - PLAYER_H + 10;
   const dx = state.aimX - sx, dy = state.aimY - sy;
   const len = Math.sqrt(dx * dx + dy * dy);
-  state.ball = { x: sx, y: sy, vx: (dx / len) * BALL_SPEED, vy: (dy / len) * BALL_SPEED };
+  const spd = ballSpeed();
+  state.ball = { x: sx, y: sy, vx: (dx / len) * spd, vy: (dy / len) * spd };
   state.ballActive = true;
   state.isAiming = false;
   setBanner('…');
@@ -110,10 +127,16 @@ function stepBall() {
   const b = state.ball;
   b.x += b.vx; b.y += b.vy;
 
+  // Track trail (last 8 positions)
+  state.trail.push({ x: b.x, y: b.y });
+  if (state.trail.length > 8) state.trail.shift();
+
+  // Wall bounces
   if (b.x - BALL_R < FL) { b.x = FL + BALL_R; b.vx = Math.abs(b.vx); }
   if (b.x + BALL_R > FR) { b.x = FR - BALL_R; b.vx = -Math.abs(b.vx); }
   if (b.y - BALL_R < FT) { b.y = FT + BALL_R; b.vy = Math.abs(b.vy); }
 
+  // Enemy collision
   let hitEnemy = null;
   for (const e of state.enemies) {
     const r = enemyRect(e);
@@ -144,8 +167,11 @@ function stepBall() {
       state.balance += payout;
       state.ngnEarned += payout;
       state.kills++;
+      state.killsThisShot++;
+      state.shake = 10; // screen shake frames
       updateWallet();
-      setBanner(`win:${payout}`);
+      const streak = state.winStreak + 1;
+      setBanner(streak > 1 ? `win:${payout} 🔥×${streak}` : `win:${payout}`);
       addPopup(r.x + r.w / 2, r.y, `+${payout}`);
       state.enemies = state.enemies.filter(x => x !== e);
       state.pendingSpawns++;
@@ -154,18 +180,41 @@ function stepBall() {
     }
   }
 
+  // Ball exits → start advance animation
   if (b.y > FB + BALL_R) {
+    if (state.killsThisShot > 0) state.winStreak++;
+    else state.winStreak = 0;
     state.ballActive = false;
     state.ball = null;
-    advanceEnemies();
+    state.trail = [];
+    state.advancing = true;
+    state.advanceOffset = 0;
   }
 }
 
-function advanceEnemies() {
+// ── ADVANCE ANIMATION ────────────────────────────────────
+function tickAdvance() {
+  if (!state.advancing) return;
+  state.advanceOffset += 3; // ~12 frames to complete at 35px
+  if (state.advanceOffset >= CELL_H) {
+    state.advanceOffset = 0;
+    state.advancing = false;
+    finishAdvance();
+  }
+}
+
+function finishAdvance() {
   state.enemies.forEach(e => e.row++);
+  state.round++;
   for (let i = 0; i < state.pendingSpawns; i++) spawnEnemy();
   state.pendingSpawns = 0;
-  if (state.enemies.some(e => enemyXY(e.col, e.row).y + ENEMY_H > DIVIDER_Y)) triggerBreach();
+  if (state.enemies.some(e => enemyXY(e.col, e.row).y + ENEMY_H > DIVIDER_Y)) {
+    triggerBreach();
+  } else {
+    const spd = ballSpeed().toFixed(1);
+    setBanner(`Round ${state.round} — speed ×${(ballSpeed()/BALL_SPEED).toFixed(1)}`);
+    setTimeout(() => { if (state.screen === 'arena') setBanner('Aim & Shoot!'); }, 1200);
+  }
 }
 
 function addPopup(x, y, text) {
@@ -173,26 +222,27 @@ function addPopup(x, y, text) {
 }
 
 // ── UI HELPERS ───────────────────────────────────────────
-function setBanner(txt)   { document.getElementById('banner').textContent = txt; }
-function updateWallet()   {
+function setBanner(txt)  { document.getElementById('banner').textContent = txt; }
+function updateWallet()  {
   document.getElementById('wallet-amount').textContent =
     state.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function updateBetDisplay() {
-  document.getElementById('bet-value').textContent = BET_LEVELS[state.betIdx].toLocaleString();
-  const pct = (state.betIdx / (BET_LEVELS.length - 1)) * 100;
-  document.getElementById('bet-slider').style.setProperty('--pct', pct + '%');
+  document.getElementById('bet-value').textContent = BET_LABELS[state.betIdx];
+  document.querySelectorAll('.bet-btn').forEach(b => {
+    b.classList.toggle('active', +b.dataset.idx === state.betIdx);
+  });
 }
 function showBetUI() {
   document.getElementById('carry-label').style.display = 'block';
-  document.getElementById('slider-area').style.display = 'flex';
+  document.getElementById('bet-presets').style.display = 'grid';
   document.getElementById('action-btn').style.display = 'block';
   document.getElementById('action-btn').textContent = 'BET';
   document.getElementById('bet-display').style.marginBottom = '8px';
 }
 function hideArenaUI() {
   document.getElementById('carry-label').style.display = 'none';
-  document.getElementById('slider-area').style.display = 'none';
+  document.getElementById('bet-presets').style.display = 'none';
 }
 function showArenaUI() {
   hideArenaUI();
@@ -243,7 +293,7 @@ function getCanvasPos(e) {
 }
 
 canvas.addEventListener('pointerdown', e => {
-  if (state.screen !== 'arena' || state.ballActive) return;
+  if (state.screen !== 'arena' || state.ballActive || state.advancing) return;
   e.preventDefault();
   const p = getCanvasPos(e);
   state.isAiming = true;
@@ -259,7 +309,7 @@ canvas.addEventListener('pointermove', e => {
 });
 
 canvas.addEventListener('pointerup', e => {
-  if (state.screen !== 'arena' || state.ballActive || !state.isAiming) return;
+  if (state.screen !== 'arena' || state.ballActive || state.advancing || !state.isAiming) return;
   state.isAiming = false;
   shoot();
 });
@@ -273,20 +323,26 @@ document.getElementById('btn-back').addEventListener('click', () => {
   if (state.screen === 'arena') goToBet();
 });
 document.getElementById('btn-siege').addEventListener('click', siegeAgain);
-document.getElementById('bet-slider').addEventListener('input', e => {
-  state.betIdx = +e.target.value;
-  updateBetDisplay();
+
+// Bet preset buttons
+document.querySelectorAll('.bet-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.betIdx = +btn.dataset.idx;
+    updateBetDisplay();
+  });
 });
 
 // ── MAIN LOOP ─────────────────────────────────────────────
 let lastTime = 0;
 function loop(ts) {
-  // Always schedule next frame first — nothing can break the loop
   requestAnimationFrame(loop);
   if (ts - lastTime < 16) return;
   lastTime = ts;
   try {
-    if (state.screen === 'arena') stepBall();
+    if (state.screen === 'arena') {
+      if (state.advancing) tickAdvance();
+      else stepBall();
+    }
     render();
   } catch (err) {
     console.error('Game loop error:', err);

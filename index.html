@@ -124,36 +124,33 @@ canvas {
   width:16px; height:16px;
   vertical-align:middle;
 }
-/* Slider area — bet screen only */
-#slider-area {
-  display:flex;
-  align-items:center;
-  gap:8px;
-  padding:0 40px;
-  margin-bottom:12px;
-  color:#fff;
-  font-size:12px; font-weight:700;
-}
-#bet-slider {
-  flex:1;
-  -webkit-appearance:none;
-  height:6px;
-  border-radius:100px;
-  background:linear-gradient(to right,#ffa063 var(--pct,0%),#877061 var(--pct,0%));
-  outline:none;
-}
-#bet-slider::-webkit-slider-thumb {
-  -webkit-appearance:none;
-  width:30px; height:30px;
-  border-radius:50%;
-  background:url('images/chip.png') center/cover;
-  cursor:pointer;
-}
+/* Bet preset buttons */
 #carry-label {
   text-align:center;
   color:#fff;
   font-size:14px; font-weight:700;
-  margin-bottom:4px;
+  margin-bottom:6px;
+}
+#bet-presets {
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:5px;
+  padding:0 12px;
+  margin-bottom:8px;
+}
+.bet-btn {
+  background:rgba(255,255,255,0.12);
+  border:1px solid rgba(255,255,255,0.35);
+  color:#fff;
+  font-size:12px; font-weight:700;
+  padding:7px 0;
+  border-radius:4px;
+  cursor:pointer;
+  transition:background .15s;
+}
+.bet-btn.active {
+  background:#f33;
+  border-color:#f33;
 }
 #action-btn {
   width:360px;
@@ -206,7 +203,7 @@ canvas {
 
   <!-- Foreground castle frame — sits above canvas, below UI, transparent center -->
   <img id="fg-frame" src="images/castle-frame.png"
-       style="position:absolute;top:5px;left:-14px;width:387px;height:639px;pointer-events:none;z-index:10;" alt="">
+       style="position:absolute;top:0;left:0;width:360px;height:640px;pointer-events:none;z-index:10;" alt="">
 
   <!-- Header -->
   <div id="header">
@@ -228,10 +225,15 @@ canvas {
   <div id="bottom">
     <!-- Bet-screen extras -->
     <div id="carry-label">Carry Your Bullets</div>
-    <div id="slider-area">
-      <span>3</span>
-      <input type="range" id="bet-slider" min="0" max="7" value="1" step="1">
-      <span>10</span>
+    <div id="bet-presets">
+      <button class="bet-btn" data-idx="0">10</button>
+      <button class="bet-btn active" data-idx="1">50</button>
+      <button class="bet-btn" data-idx="2">100</button>
+      <button class="bet-btn" data-idx="3">200</button>
+      <button class="bet-btn" data-idx="4">500</button>
+      <button class="bet-btn" data-idx="5">1K</button>
+      <button class="bet-btn" data-idx="6">2K</button>
+      <button class="bet-btn" data-idx="7">5K</button>
     </div>
     <!-- Always visible -->
     <div id="bet-display">
