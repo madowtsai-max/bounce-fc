@@ -13,6 +13,143 @@ function loadAssets(cb) {
   });
 }
 
+// ── SPINE KNIGHT ─────────────────────────────────────────
+let knight = null;   // { skeleton, animState, renderer, x, targetX, lastTime }
+
+function loadKnight(cb) {
+  const base = 'spine/';
+  const imgEl = new Image();
+  imgEl.onerror = () => cb();  // fail gracefully — static sprite used as fallback
+
+  imgEl.onload = () => {
+    Promise.all([
+      fetch(base + 'knight.atlas').then(r => r.text()),
+      fetch(base + 'knight.json').then(r => r.json()),
+    ]).then(([atlasText, jsonData]) => {
+      // Build atlas — textureLoader is synchronous: receives page name, returns Texture
+      const textureAtlas = new spine.TextureAtlas(atlasText, () =>
+        new spine.canvas.CanvasTexture(imgEl)
+      );
+      const atlasLoader  = new spine.AtlasAttachmentLoader(textureAtlas);
+      const skelJson     = new spine.SkeletonJson(atlasLoader);
+      const skelData     = skelJson.readSkeletonData(jsonData);
+
+      const skeleton = new spine.Skeleton(skelData);
+      // Knight designed at 1080×1920; game canvas is 360×640 = exactly 1/3
+      skeleton.scaleX =  1 / 3;
+      skeleton.scaleY = -1 / 3;  // Spine Y is up; canvas Y is down
+      skeleton.x = PLAYER_X;
+      skeleton.y = PLAYER_Y;
+
+      const stateData = new spine.AnimationStateData(skelData);
+      stateData.defaultMix = 0.2;
+      const animState = new spine.AnimationState(stateData);
+      animState.setAnimation(0, 'idle', true);
+
+      const renderer = new spine.canvas.SkeletonRenderer(ctx);
+      renderer.debugRendering = false;
+
+      knight = {
+        skeleton, animState, renderer,
+        x: PLAYER_X, targetX: PLAYER_X,
+        lastTime: performance.now() / 1000,
+      };
+      cb();
+    }).catch(() => cb());
+  };
+  imgEl.src = base + 'knight.png';
+}
+
+function knightPlay(anim, loop = false, trackMix = 0.15) {
+  if (!knight) return;
+  const cur = knight.animState.getCurrent(0);
+  if (cur && cur.animation && cur.animation.name === anim) return;
+  knight.animState.setAnimation(0, anim, loop);
+}
+
+function updateKnight(nowSec) {
+  if (!knight) return;
+  const delta = nowSec - knight.lastTime;
+  knight.lastTime = nowSec;
+
+  // Slide knight toward targetX
+  const dx = knight.targetX - knight.x;
+  if (Math.abs(dx) > 1) knight.x += dx * Math.min(1, delta * 10);
+  else knight.x = knight.targetX;
+
+  knight.skeleton.x = knight.x;
+  knight.animState.update(delta);
+  knight.animState.apply(knight.skeleton);
+  knight.skeleton.updateWorldTransform();
+}
+
+// ── SPINE BALL ────────────────────────────────────────────
+let ballSkel = null;  // { skeleton, animState, renderer, lastTime }
+
+function loadBall(cb) {
+  const base = 'spine/';
+  const imgEl = new Image();
+  imgEl.onerror = () => cb();
+
+  imgEl.onload = () => {
+    Promise.all([
+      fetch(base + 'ball.atlas').then(r => r.text()),
+      fetch(base + 'ball.json').then(r => r.json()),
+    ]).then(([atlasText, jsonData]) => {
+      const textureAtlas = new spine.TextureAtlas(atlasText, () =>
+        new spine.canvas.CanvasTexture(imgEl)
+      );
+      const atlasLoader = new spine.AtlasAttachmentLoader(textureAtlas);
+      const skelJson    = new spine.SkeletonJson(atlasLoader);
+      const skelData    = skelJson.readSkeletonData(jsonData);
+
+      const skeleton = new spine.Skeleton(skelData);
+      skeleton.scaleX =  1 / 3;
+      skeleton.scaleY = -1 / 3;
+
+      const stateData = new spine.AnimationStateData(skelData);
+      stateData.defaultMix = 0.1;
+      const animState = new spine.AnimationState(stateData);
+      animState.setAnimation(0, 'idle', true);
+
+      const renderer = new spine.canvas.SkeletonRenderer(ctx);
+      renderer.debugRendering = false;
+
+      ballSkel = { skeleton, animState, renderer, lastTime: performance.now() / 1000 };
+      cb();
+    }).catch(() => cb());
+  };
+  imgEl.src = base + 'ball.png';
+}
+
+function updateBallSkel(nowSec) {
+  if (!ballSkel) return;
+  const delta = nowSec - ballSkel.lastTime;
+  ballSkel.lastTime = nowSec;
+  ballSkel.animState.update(delta);
+  ballSkel.animState.apply(ballSkel.skeleton);
+  // updateWorldTransform called after position/rotation set in drawSpineBall
+}
+
+function ballSpinePlay(anim, loop) {
+  if (!ballSkel) return;
+  const cur = ballSkel.animState.getCurrent(0);
+  if (cur && cur.animation && cur.animation.name === anim) return;
+  ballSkel.animState.setAnimation(0, anim, loop);
+}
+
+
+function drawKnight() {
+  if (!knight) {
+    // Fallback: static sprite
+    safeDrawImage(IMG.player, PLAYER_X - PLAYER_W / 2, PLAYER_Y - PLAYER_H + 10, PLAYER_W, PLAYER_H);
+    return;
+  }
+  ctx.save();
+  knight.renderer.draw(knight.skeleton);
+  ctx.restore();
+}
+
 // ── CANVAS ───────────────────────────────────────────────
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
@@ -72,21 +209,28 @@ function drawEnemies() {
 }
 
 function drawPlayer() {
-  safeDrawImage(IMG.player, PLAYER_X - PLAYER_W / 2, PLAYER_Y - PLAYER_H + 10, PLAYER_W, PLAYER_H);
+  drawKnight();
 }
+
+let _aimDashOffset = 0;
 
 function drawAimLine() {
   if (!state.isAiming || state.ballActive) return;
   const pts = calcTrajectory(PLAYER_X, PLAYER_Y - PLAYER_H + 10, state.aimX, state.aimY);
   if (pts.length < 2) return;
+
+  _aimDashOffset = (_aimDashOffset + 0.5) % 16;
+
   ctx.save();
   ctx.strokeStyle = 'rgba(255,255,255,0.85)';
   ctx.lineWidth = 2;
   ctx.setLineDash([8, 8]);
+  ctx.lineDashOffset = -_aimDashOffset;
   ctx.beginPath();
   pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
   ctx.stroke();
   ctx.setLineDash([]);
+  ctx.lineDashOffset = 0;
   const last = pts[pts.length - 1];
   const prev = pts[pts.length - 2];
   const ang = Math.atan2(last.y - prev.y, last.x - prev.x);
@@ -102,34 +246,41 @@ function drawAimLine() {
 
 function drawBall() {
   if (!state.ballActive || !state.ball) return;
-  const { x, y } = state.ball;
-  // Trail — fading dots behind ball
-  state.trail.forEach((p, i) => {
-    const a = (i / state.trail.length) * 0.35;
-    const r = BALL_R * 0.5 * (i / state.trail.length);
-    ctx.save();
-    ctx.globalAlpha = a;
-    ctx.fillStyle = '#ff8800';
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  });
-  // Flame + ball — guard against broken images
-  if (IMG.flame && IMG.flame.naturalWidth > 0) {
-    ctx.save();
-    ctx.globalAlpha = 0.7;
-    safeDrawImage(IMG.flame, x - 10, y - 10, 20, 40);
-    ctx.restore();
+  const { x, y, vx, vy } = state.ball;
+
+  // Fading dot trail
+  if (state.trail) {
+    state.trail.forEach((p, i) => {
+      const t = (i + 1) / state.trail.length;
+      ctx.save();
+      ctx.globalAlpha = t * 0.45;
+      ctx.fillStyle = '#ffe066';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, BALL_R * t * 0.7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
   }
-  if (IMG.fireball && IMG.fireball.naturalWidth > 0) {
-    safeDrawImage(IMG.fireball, x - BALL_R, y - BALL_R, BALL_R * 2, BALL_R * 2);
+
+  // Ball image: 1:1.2 stretch in travel direction, 1:1 on wall bounce
+  const squashing = state.ballSquash > 0;
+  const scaleY = squashing ? 1 : 1.2;
+  const angle  = Math.atan2(vy, vx);
+  const r = BALL_R;
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.scale(1, scaleY);
+  if (IMG.soccer && IMG.soccer.naturalWidth > 0) {
+    ctx.drawImage(IMG.soccer, -r, -r, r * 2, r * 2);
   } else {
-    ctx.fillStyle = '#ff8800';
+    ctx.fillStyle = '#ffe066';
     ctx.beginPath();
-    ctx.arc(x, y, BALL_R, 0, Math.PI * 2);
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fill();
   }
+  ctx.restore();
 }
 
 function drawHitFlash() {
@@ -190,17 +341,18 @@ function render() {
       sy = (Math.random() - 0.5) * intensity;
       state.shake--;
     }
+    updateKnight(performance.now() / 1000);
     ctx.save();
     ctx.translate(sx, sy);
     try {
       drawDivider();
       drawEnemies();
-      drawPlayer();
       if (state.screen === 'arena') {
         drawAimLine();
         drawBall();
         drawHitFlash();
       }
+      drawPlayer();   // knight on top of ball
       drawPopups();
     } finally {
       ctx.restore();

@@ -1,13 +1,12 @@
 // ── ASSETS ───────────────────────────────────────────────
 const URLS = {
-  bgField:  'images/bg.png',
-  player:   'images/player.png',
-  ghoul:    'images/ghoul.png',
-  skull:    'images/skull.png',
-  mage:     'images/mage.png',
-  king:     'images/king.png',
-  fireball: 'images/fireball.png',
-  flame:    'images/flame.png',
+  bgField: 'images/bg.png',
+  player:  'images/player.png',
+  ghoul:   'images/ghoul.png',
+  skull:   'images/skull.png',
+  mage:    'images/mage.png',
+  king:    'images/king.png',
+  soccer:  'images/soccer.png',
 };
 
 // ── LAYOUT ───────────────────────────────────────────────

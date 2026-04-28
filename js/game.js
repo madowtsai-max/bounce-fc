@@ -19,6 +19,7 @@ function resetState() {
     popups:        [],
     hitFlash:      null,
     pendingSpawns: 0,
+    ballSquash:    0,   // frames remaining of 1:1 squash on wall hit
     // New fields
     trail:         [],      // ball trail positions
     shake:         0,       // screen shake frames remaining
@@ -110,15 +111,18 @@ function shoot() {
   state.ngnSpent += bet;
   state.shotsFired++;
   state.killsThisShot = 0;
-  state.trail = [];
+  state.receivedThisShot = false;
+  state.trail = [];  // trail positions for fading dot effect
   updateWallet();
-  const sx = PLAYER_X, sy = PLAYER_Y - PLAYER_H + 10;
+  const sx = knight ? knight.x : PLAYER_X;
+  const sy = PLAYER_Y - PLAYER_H + 10;
   const dx = state.aimX - sx, dy = state.aimY - sy;
   const len = Math.sqrt(dx * dx + dy * dy);
   const spd = ballSpeed();
   state.ball = { x: sx, y: sy, vx: (dx / len) * spd, vy: (dy / len) * spd };
   state.ballActive = true;
   state.isAiming = false;
+  knightPlay('attack', false);
   setBanner('…');
 }
 
@@ -127,14 +131,15 @@ function stepBall() {
   const b = state.ball;
   b.x += b.vx; b.y += b.vy;
 
-  // Track trail (last 8 positions)
+  // Store trail (last 6 positions)
   state.trail.push({ x: b.x, y: b.y });
-  if (state.trail.length > 8) state.trail.shift();
+  if (state.trail.length > 6) state.trail.shift();
 
-  // Wall bounces
-  if (b.x - BALL_R < FL) { b.x = FL + BALL_R; b.vx = Math.abs(b.vx); }
-  if (b.x + BALL_R > FR) { b.x = FR - BALL_R; b.vx = -Math.abs(b.vx); }
-  if (b.y - BALL_R < FT) { b.y = FT + BALL_R; b.vy = Math.abs(b.vy); }
+  // Wall bounces — trigger squash on impact
+  if (b.x - BALL_R < FL) { b.x = FL + BALL_R; b.vx = Math.abs(b.vx);  state.ballSquash = 5; }
+  if (b.x + BALL_R > FR) { b.x = FR - BALL_R; b.vx = -Math.abs(b.vx); state.ballSquash = 5; }
+  if (b.y - BALL_R < FT) { b.y = FT + BALL_R; b.vy = Math.abs(b.vy);  state.ballSquash = 5; }
+  if (state.ballSquash > 0) state.ballSquash--;
 
   // Enemy collision
   let hitEnemy = null;
@@ -180,12 +185,21 @@ function stepBall() {
     }
   }
 
+  // Trigger receive exactly once when ball first crosses DIVIDER_Y going down
+  if (knight && !state.receivedThisShot && b.y > DIVIDER_Y && b.vy > 0) {
+    state.receivedThisShot = true;
+    knight.targetX = Math.max(FL + 20, Math.min(FR - 20, b.x));
+    knightPlay('receive', false);
+  }
+
   // Ball exits → start advance animation
   if (b.y > FB + BALL_R) {
+    if (knight) { knight.targetX = PLAYER_X; knightPlay('start', false); }
     if (state.killsThisShot > 0) state.winStreak++;
     else state.winStreak = 0;
     state.ballActive = false;
     state.ball = null;
+    state.trail = [];
     state.trail = [];
     state.advancing = true;
     state.advanceOffset = 0;
@@ -211,6 +225,7 @@ function finishAdvance() {
   if (state.enemies.some(e => enemyXY(e.col, e.row).y + ENEMY_H > DIVIDER_Y)) {
     triggerBreach();
   } else {
+    knightPlay('idle', true);
     const spd = ballSpeed().toFixed(1);
     setBanner(`Round ${state.round} — speed ×${(ballSpeed()/BALL_SPEED).toFixed(1)}`);
     setTimeout(() => { if (state.screen === 'arena') setBanner('Aim & Shoot!'); }, 1200);
@@ -273,6 +288,13 @@ function goToArena() {
   initArena();
   showArenaUI();
   setBanner('Aim & Shoot!');
+  if (knight) {
+    knight.x = PLAYER_X;
+    knight.targetX = PLAYER_X;
+    knight.skeleton.x = PLAYER_X;
+    knightPlay('enter', false);
+    knight.animState.addAnimation(0, 'idle', true, 0);
+  }
 }
 function siegeAgain() {
   const bal = state.balance;
@@ -299,6 +321,7 @@ canvas.addEventListener('pointerdown', e => {
   state.isAiming = true;
   state.aimX = p.x;
   state.aimY = Math.min(p.y, PLAYER_Y - PLAYER_H - 10);
+  knightPlay('aim', true);
 }, { passive: false });
 
 canvas.addEventListener('pointermove', e => {
@@ -351,6 +374,7 @@ function loop(ts) {
 
 // ── BOOT ──────────────────────────────────────────────────
 loadAssets(() => {
+  loadKnight(() => {});  // load Spine knight in parallel; game starts regardless
   resetState();
   showBetUI();
   updateWallet();
