@@ -8274,6 +8274,32 @@ var spine;
 						region = regionAttachment.region;
 						image = region.texture.getImage();
 					}
+					else if (attachment instanceof spine.MeshAttachment) {
+						// Flat-image fallback: compute world-space bounding box and draw texture into it
+						var mesh = attachment;
+						region = mesh.region;
+						image = region.renderObject ? region.renderObject.texture.getImage() : region.texture.getImage();
+						if (!image) continue;
+						var mv = new Float32Array(mesh.worldVerticesLength);
+						mesh.computeWorldVertices(slot, 0, mesh.worldVerticesLength, mv, 0, 2);
+						var mx1 = Infinity, my1 = Infinity, mx2 = -Infinity, my2 = -Infinity;
+						for (var vi = 0; vi < mesh.worldVerticesLength; vi += 2) {
+							if (mv[vi]   < mx1) mx1 = mv[vi];
+							if (mv[vi]   > mx2) mx2 = mv[vi];
+							if (mv[vi+1] < my1) my1 = mv[vi+1];
+							if (mv[vi+1] > my2) my2 = mv[vi+1];
+						}
+						var mbw = mx2 - mx1, mbh = my2 - my1;
+						if (mbw <= 0 || mbh <= 0) continue;
+						var rw = region.rotate ? region.height : region.width;
+						var rh = region.rotate ? region.width : region.height;
+						var malpha = slot.bone.skeleton.color.a * slot.color.a * mesh.color.a;
+						ctx.save();
+						ctx.globalAlpha = malpha;
+						ctx.drawImage(image, region.x, region.y, rw, rh, mx1, my1, mbw, mbh);
+						ctx.restore();
+						continue;
+					}
 					else
 						continue;
 					var skeleton_1 = slot.bone.skeleton;
