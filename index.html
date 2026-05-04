@@ -27,6 +27,7 @@ canvas {
   position:absolute;
   top:0; left:0;
   display:block;
+  background:#2e2e38;
 }
 /* ── HEADER ── */
 #header {
@@ -108,6 +109,12 @@ canvas {
   display:flex;
   flex-direction:column;
   z-index:20;
+  background:linear-gradient(to top, rgba(0,0,0,.92) 0%, rgba(0,0,0,.72) 55%, transparent 100%);
+  padding-top:36px;
+  pointer-events:none;
+}
+#bottom > * {
+  pointer-events:auto;
 }
 #bet-display {
   display:flex;
@@ -124,33 +131,53 @@ canvas {
   width:16px; height:16px;
   vertical-align:middle;
 }
-/* Bet preset buttons */
-#carry-label {
+/* Bet range slider */
+#bet-slider-wrap {
+  padding:4px 16px 0;
+  margin-bottom:20px;
+}
+#bet-slider-amount {
   text-align:center;
-  color:#fff;
-  font-size:14px; font-weight:700;
-  margin-bottom:6px;
+  color:rgba(255,255,255,.6);
+  font-size:12px; font-weight:600;
+  letter-spacing:1.5px;
+  text-transform:uppercase;
+  margin-bottom:10px;
 }
-#bet-presets {
-  display:grid;
-  grid-template-columns:repeat(4,1fr);
-  gap:5px;
-  padding:0 12px;
-  margin-bottom:8px;
+#bet-slider-row {
+  display:flex;
+  align-items:center;
+  gap:10px;
 }
-.bet-btn {
-  background:rgba(255,255,255,0.12);
-  border:1px solid rgba(255,255,255,0.35);
-  color:#fff;
-  font-size:12px; font-weight:700;
-  padding:7px 0;
-  border-radius:4px;
+.bet-range-label {
+  color:rgba(255,255,255,.45);
+  font-size:10px; font-weight:600;
+  white-space:nowrap;
+}
+#bet-slider {
+  -webkit-appearance:none;
+  flex:1;
+  height:4px;
+  border-radius:2px;
+  outline:none;
   cursor:pointer;
-  transition:background .15s;
+  background:rgba(255,255,255,.2);
 }
-.bet-btn.active {
-  background:#f33;
-  border-color:#f33;
+#bet-slider::-webkit-slider-thumb {
+  -webkit-appearance:none;
+  width:22px; height:22px;
+  border-radius:50%;
+  background:#fff;
+  box-shadow:0 0 10px rgba(255,51,51,.85), 0 2px 5px rgba(0,0,0,.5);
+  cursor:pointer;
+}
+#bet-slider::-moz-range-thumb {
+  width:22px; height:22px;
+  border-radius:50%;
+  background:#fff;
+  border:none;
+  box-shadow:0 0 10px rgba(255,51,51,.85), 0 2px 5px rgba(0,0,0,.5);
+  cursor:pointer;
 }
 #action-btn {
   width:360px;
@@ -205,6 +232,9 @@ canvas {
   <img id="fg-frame" src="images/castle-frame.png"
        style="position:absolute;top:0;left:0;width:360px;height:640px;pointer-events:none;z-index:10;" alt="">
 
+  <!-- Aim line overlay — above castle frame, below HUD -->
+  <canvas id="aim-canvas" style="position:absolute;top:0;left:0;width:360px;height:640px;pointer-events:none;z-index:11;"></canvas>
+
   <!-- Header -->
   <div id="header">
     <button id="btn-back">‹</button>
@@ -223,17 +253,14 @@ canvas {
 
   <!-- Bottom controls -->
   <div id="bottom">
-    <!-- Bet-screen extras -->
-    <div id="carry-label">Carry Your Bullets</div>
-    <div id="bet-presets">
-      <button class="bet-btn" data-idx="0">10</button>
-      <button class="bet-btn active" data-idx="1">50</button>
-      <button class="bet-btn" data-idx="2">100</button>
-      <button class="bet-btn" data-idx="3">200</button>
-      <button class="bet-btn" data-idx="4">500</button>
-      <button class="bet-btn" data-idx="5">1K</button>
-      <button class="bet-btn" data-idx="6">2K</button>
-      <button class="bet-btn" data-idx="7">5K</button>
+    <!-- Bet-screen slider -->
+    <div id="bet-slider-wrap">
+      <div id="bet-slider-amount">Place Your Bet</div>
+      <div id="bet-slider-row">
+        <span class="bet-range-label">10</span>
+        <input type="range" id="bet-slider" min="0" max="100" step="1" value="4">
+        <span class="bet-range-label">10M</span>
+      </div>
     </div>
     <!-- Always visible -->
     <div id="bet-display">
@@ -251,7 +278,8 @@ canvas {
       Shots fired: <span id="stat-shots">0</span><br>
       Kills: <span id="stat-kills">0</span><br>
       NGN spent: <span id="stat-spent">0</span><br>
-      NGN earned: <span id="stat-earned">0</span>
+      NGN earned: <span id="stat-earned">0</span><br>
+      Session best: <span id="stat-best">0</span>
     </div>
     <button id="btn-siege">⚔ SIEGE AGAIN</button>
   </div>

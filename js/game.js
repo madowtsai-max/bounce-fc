@@ -5,7 +5,7 @@ function resetState() {
   state = {
     screen:        'bet',
     balance:       10000,
-    betIdx:        1,
+    bet:           50,
     enemies:       [],
     ball:          null,
     ballActive:    false,
@@ -19,7 +19,8 @@ function resetState() {
     popups:        [],
     hitFlash:      null,
     pendingSpawns: 0,
-    ballSquash:    0,   // frames remaining of 1:1 squash on wall hit
+    ballSquash:        0,
+    knightReturnTimer: 0,
     // New fields
     trail:         [],      // ball trail positions
     shake:         0,       // screen shake frames remaining
@@ -96,8 +97,22 @@ function calcTrajectory(sx, sy, tx, ty) {
     if (x - BALL_R < FL) { x = FL + BALL_R; vx = Math.abs(vx); }
     if (x + BALL_R > FR) { x = FR - BALL_R; vx = -Math.abs(vx); }
     if (y - BALL_R < FT) { y = FT + BALL_R; vy = Math.abs(vy); }
+    // Enemy collision in trajectory
+    for (const e of state.enemies) {
+      const r = enemyRect(e);
+      if (x + BALL_R <= r.x || x - BALL_R >= r.x + r.w ||
+          y + BALL_R <= r.y || y - BALL_R >= r.y + r.h) continue;
+      const oL = (x + BALL_R) - r.x, oR = (r.x + r.w) - (x - BALL_R);
+      const oT = (y + BALL_R) - r.y, oB = (r.y + r.h) - (y - BALL_R);
+      const min = Math.min(oL, oR, oT, oB);
+      if      (min === oL) { vx = -Math.abs(vx); x = r.x - BALL_R; }
+      else if (min === oR) { vx =  Math.abs(vx); x = r.x + r.w + BALL_R; }
+      else if (min === oT) { vy = -Math.abs(vy); y = r.y - BALL_R; }
+      else                 { vy =  Math.abs(vy); y = r.y + r.h + BALL_R; }
+      break;
+    }
     pts.push({ x, y });
-    if (y > DIVIDER_Y + 40) break;
+    if (y > PLAYER_Y) break;
   }
   return pts;
 }
@@ -105,7 +120,7 @@ function calcTrajectory(sx, sy, tx, ty) {
 // ── PHYSICS ──────────────────────────────────────────────
 function shoot() {
   if (state.ballActive || state.advancing) return;
-  const bet = BET_LEVELS[state.betIdx];
+  const bet = state.bet;
   if (state.balance < bet) { setBanner('Not enough NGN!'); return; }
   state.balance -= bet;
   state.ngnSpent += bet;
@@ -115,7 +130,7 @@ function shoot() {
   state.trail = [];  // trail positions for fading dot effect
   updateWallet();
   const sx = knight ? knight.x : PLAYER_X;
-  const sy = PLAYER_Y - PLAYER_H + 10;
+  const sy = PLAYER_Y;
   const dx = state.aimX - sx, dy = state.aimY - sy;
   const len = Math.sqrt(dx * dx + dy * dy);
   const spd = ballSpeed();
@@ -168,7 +183,7 @@ function stepBall() {
     const dmg = t.dmgMin + Math.floor(Math.random() * (t.dmgMax - t.dmgMin + 1));
     e.hp = Math.max(0, e.hp - dmg);
     if (e.hp <= 0) {
-      const payout = Math.round(BET_LEVELS[state.betIdx] * t.payout);
+      const payout = Math.round(state.bet * t.payout);
       state.balance += payout;
       state.ngnEarned += payout;
       state.kills++;
@@ -185,16 +200,17 @@ function stepBall() {
     }
   }
 
-  // Trigger receive exactly once when ball first crosses DIVIDER_Y going down
-  if (knight && !state.receivedThisShot && b.y > DIVIDER_Y && b.vy > 0) {
+  // Move knight ~1/15s (4 frames) before ball returns to PLAYER_Y
+  if (knight && !state.receivedThisShot && b.y > PLAYER_Y - 40 && b.vy > 0) {
     state.receivedThisShot = true;
     knight.targetX = Math.max(FL + 20, Math.min(FR - 20, b.x));
     knightPlay('receive', false);
   }
 
-  // Ball exits → start advance animation
-  if (b.y > FB + BALL_R) {
-    if (knight) { knight.targetX = PLAYER_X; knightPlay('start', false); }
+  // Ball returns to knight level → advance
+  if (b.y > PLAYER_Y && b.vy > 0) {
+    if (knight) { knightPlay('start', false); }
+    state.knightReturnTimer = 10; // stay ~1/6s then slide back
     if (state.killsThisShot > 0) state.winStreak++;
     else state.winStreak = 0;
     state.ballActive = false;
@@ -242,22 +258,38 @@ function updateWallet()  {
   document.getElementById('wallet-amount').textContent =
     state.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+function sliderToBet(pos) {
+  const logMin = Math.log10(BET_MIN), logMax = Math.log10(BET_MAX);
+  const raw = Math.pow(10, logMin + (pos / 100) * (logMax - logMin));
+  return BET_SNAPS.reduce((a, b) => Math.abs(b - raw) < Math.abs(a - raw) ? b : a);
+}
+function betToSlider(val) {
+  const logMin = Math.log10(BET_MIN), logMax = Math.log10(BET_MAX);
+  return (Math.log10(val) - logMin) / (logMax - logMin) * 100;
+}
+function formatBet(v) {
+  if (v >= 1000000) return (v / 1000000 % 1 === 0 ? v / 1000000 : +(v / 1000000).toFixed(1)) + 'M';
+  if (v >= 1000)    return (v / 1000 % 1 === 0 ? v / 1000 : +(v / 1000).toFixed(1)) + 'K';
+  return v.toString();
+}
+function syncSliderFill(slider) {
+  const pct = ((+slider.value - +slider.min) / (+slider.max - +slider.min) * 100).toFixed(1);
+  slider.style.background = `linear-gradient(to right,#f33 0%,#f33 ${pct}%,rgba(255,255,255,.2) ${pct}%,rgba(255,255,255,.2) 100%)`;
+}
 function updateBetDisplay() {
-  document.getElementById('bet-value').textContent = BET_LABELS[state.betIdx];
-  document.querySelectorAll('.bet-btn').forEach(b => {
-    b.classList.toggle('active', +b.dataset.idx === state.betIdx);
-  });
+  const slider = document.getElementById('bet-slider');
+  slider.value = betToSlider(state.bet);
+  syncSliderFill(slider);
+  document.getElementById('bet-value').textContent = formatBet(state.bet);
 }
 function showBetUI() {
-  document.getElementById('carry-label').style.display = 'block';
-  document.getElementById('bet-presets').style.display = 'grid';
+  document.getElementById('bet-slider-wrap').style.display = 'block';
   document.getElementById('action-btn').style.display = 'block';
   document.getElementById('action-btn').textContent = 'BET';
   document.getElementById('bet-display').style.marginBottom = '8px';
 }
 function hideArenaUI() {
-  document.getElementById('carry-label').style.display = 'none';
-  document.getElementById('bet-presets').style.display = 'none';
+  document.getElementById('bet-slider-wrap').style.display = 'none';
 }
 function showArenaUI() {
   hideArenaUI();
@@ -266,13 +298,19 @@ function showArenaUI() {
 }
 
 // ── SCREEN TRANSITIONS ────────────────────────────────────
+let _sessionBest = 0;
+
 function triggerBreach() {
+  _sessionBest = Math.max(_sessionBest, state.ngnEarned);
   state.screen = 'breach';
   document.getElementById('breach').style.display = 'flex';
   document.getElementById('stat-shots').textContent = state.shotsFired;
   document.getElementById('stat-kills').textContent = state.kills;
   document.getElementById('stat-spent').textContent = state.ngnSpent.toLocaleString();
   document.getElementById('stat-earned').textContent = state.ngnEarned.toLocaleString();
+  const bestEl = document.getElementById('stat-best');
+  bestEl.textContent = _sessionBest.toLocaleString();
+  bestEl.style.color = state.ngnEarned >= _sessionBest ? '#ffd700' : '#fff';
   hideArenaUI();
 }
 function goToBet() {
@@ -340,19 +378,20 @@ canvas.addEventListener('pointerup', e => {
 canvas.addEventListener('pointercancel', () => { state.isAiming = false; });
 
 document.getElementById('action-btn').addEventListener('click', () => {
-  if (state.screen === 'bet') goToArena();
+  if (state.screen === 'bet') {
+    if (state.bet > state.balance) { setBanner('Bet exceeds balance!'); return; }
+    goToArena();
+  }
 });
 document.getElementById('btn-back').addEventListener('click', () => {
   if (state.screen === 'arena') goToBet();
 });
 document.getElementById('btn-siege').addEventListener('click', siegeAgain);
 
-// Bet preset buttons
-document.querySelectorAll('.bet-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    state.betIdx = +btn.dataset.idx;
-    updateBetDisplay();
-  });
+document.getElementById('bet-slider').addEventListener('input', function() {
+  state.bet = sliderToBet(+this.value);
+  syncSliderFill(this);
+  document.getElementById('bet-value').textContent = formatBet(state.bet);
 });
 
 // ── MAIN LOOP ─────────────────────────────────────────────
@@ -365,6 +404,12 @@ function loop(ts) {
     if (state.screen === 'arena') {
       if (state.advancing) tickAdvance();
       else stepBall();
+      if (state.knightReturnTimer > 0) {
+        state.knightReturnTimer--;
+        if (state.knightReturnTimer === 0 && knight) {
+          knight.targetX = PLAYER_X;
+        }
+      }
     }
     render();
   } catch (err) {

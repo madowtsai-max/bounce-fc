@@ -38,8 +38,10 @@ const ENEMY_HIT_PAD_Y = 0;
 const AIM_STEPS = 220;
 
 // ── GAME DATA ────────────────────────────────────────────
-const BET_LEVELS  = [10, 50, 100, 200, 500, 1000, 2000, 5000];
-const BET_LABELS  = ['10','50','100','200','500','1K','2K','5K'];
+const BET_MIN   = 10;
+const BET_MAX   = 10000000;
+const BET_SNAPS = [10,20,50,100,200,500,1000,2000,5000,10000,20000,50000,
+                   100000,200000,500000,1000000,2000000,5000000,10000000];
 
 // Payouts calibrated for ~97% RTP (theoretical, 1-hit-per-shot model)
 // Formula: payout = 0.97 × E[hits_to_kill]

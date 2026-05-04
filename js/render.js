@@ -154,13 +154,19 @@ function drawKnight() {
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
-// Scale canvas for retina/HiDPI — keeps CSS size at 360×640 but renders at full pixel density
 const DPR = window.devicePixelRatio || 1;
 canvas.width  = CW * DPR;
 canvas.height = CH * DPR;
 canvas.style.width  = CW + 'px';
 canvas.style.height = CH + 'px';
 ctx.scale(DPR, DPR);
+
+// Aim-line canvas — z-index 11, above castle frame
+const aimCanvas = document.getElementById('aim-canvas');
+const aimCtx = aimCanvas.getContext('2d');
+aimCanvas.width  = CW * DPR;
+aimCanvas.height = CH * DPR;
+aimCtx.scale(DPR, DPR);
 
 // ── DRAW FUNCTIONS ───────────────────────────────────────
 function safeDrawImage(img, ...args) {
@@ -215,33 +221,69 @@ function drawPlayer() {
 let _aimDashOffset = 0;
 
 function drawAimLine() {
+  aimCtx.clearRect(0, 0, CW, CH);
   if (!state.isAiming || state.ballActive) return;
-  const pts = calcTrajectory(PLAYER_X, PLAYER_Y - PLAYER_H + 10, state.aimX, state.aimY);
+  const kx = knight ? knight.x : PLAYER_X;
+  const pts = calcTrajectory(kx, PLAYER_Y, state.aimX, state.aimY);
   if (pts.length < 2) return;
 
   _aimDashOffset = (_aimDashOffset + 0.5) % 16;
 
-  ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([8, 8]);
-  ctx.lineDashOffset = -_aimDashOffset;
-  ctx.beginPath();
-  pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.lineDashOffset = 0;
-  const last = pts[pts.length - 1];
-  const prev = pts[pts.length - 2];
-  const ang = Math.atan2(last.y - prev.y, last.x - prev.x);
-  ctx.fillStyle = '#fff';
-  ctx.beginPath();
-  ctx.moveTo(last.x + Math.cos(ang) * 8, last.y + Math.sin(ang) * 8);
-  ctx.lineTo(last.x + Math.cos(ang + 2.4) * 5, last.y + Math.sin(ang + 2.4) * 5);
-  ctx.lineTo(last.x + Math.cos(ang - 2.4) * 5, last.y + Math.sin(ang - 2.4) * 5);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
+  // Find first bounce (wall or enemy — direction change)
+  let bounceIdx = pts.length - 1;
+  for (let i = 2; i < pts.length; i++) {
+    const sx1 = Math.sign(pts[i-1].x - pts[i-2].x);
+    const sx2 = Math.sign(pts[i].x   - pts[i-1].x);
+    const sy1 = Math.sign(pts[i-1].y - pts[i-2].y);
+    const sy2 = Math.sign(pts[i].y   - pts[i-1].y);
+    if ((sx1 !== 0 && sx1 !== sx2) || (sy1 !== 0 && sy1 !== sy2)) {
+      bounceIdx = i - 1;
+      break;
+    }
+  }
+  const bp = pts[bounceIdx];
+
+  const ac = aimCtx;
+  ac.save();
+
+  // Dashed line: knight → first bounce
+  ac.strokeStyle = 'rgba(255,255,255,0.85)';
+  ac.lineWidth = 2;
+  ac.setLineDash([8, 8]);
+  ac.lineDashOffset = -_aimDashOffset;
+  ac.beginPath();
+  ac.moveTo(pts[0].x, pts[0].y);
+  ac.lineTo(bp.x, bp.y);
+  ac.stroke();
+  ac.setLineDash([]);
+  ac.lineDashOffset = 0;
+
+  // Rotating target circle (50% bigger: radius 14)
+  ac.translate(bp.x, bp.y);
+  const R   = 14;
+  const rot = (_aimDashOffset / 16) * Math.PI * 2;
+  // Faint full ring
+  ac.strokeStyle = 'rgba(255,255,255,0.35)';
+  ac.lineWidth = 1.5;
+  ac.beginPath();
+  ac.arc(0, 0, R, 0, Math.PI * 2);
+  ac.stroke();
+  // 3 bright spinning arcs
+  ac.strokeStyle = 'rgba(255,255,255,0.95)';
+  ac.lineWidth = 2.5;
+  for (let a = 0; a < 3; a++) {
+    const start = rot + (a * Math.PI * 2 / 3);
+    ac.beginPath();
+    ac.arc(0, 0, R, start, start + Math.PI * 0.45);
+    ac.stroke();
+  }
+  // Red center dot
+  ac.fillStyle = '#ff3333';
+  ac.beginPath();
+  ac.arc(0, 0, 3.5, 0, Math.PI * 2);
+  ac.fill();
+
+  ac.restore();
 }
 
 function drawBall() {
