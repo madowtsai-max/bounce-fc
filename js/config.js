@@ -43,6 +43,9 @@ const BET_MAX   = 10000000;
 const BET_SNAPS = [10,20,50,100,200,500,1000,2000,5000,10000,20000,50000,
                    100000,200000,500000,1000000,2000000,5000000,10000000];
 
+const ENEMY_SCALE     = 0.09;  // ~380 Spine units → ~34px on canvas
+const ENEMY_SPINE_Y_OFF = 19;  // skeleton.y = cell_top + this → head at cell top
+
 // Payouts calibrated for ~97% RTP (theoretical, 1-hit-per-shot model)
 // Formula: payout = 0.97 × E[hits_to_kill]
 // E[hits]: Ghoul=1.33, Skull=2.37, Mage=4.22, King=10.0

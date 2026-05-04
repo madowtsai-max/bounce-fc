@@ -48,7 +48,9 @@ function spawnEnemy() {
     if (roll < acc) { typeIdx = i; break; }
   }
   const t = ENEMY_TYPES[typeIdx];
-  state.enemies.push({ typeIdx, hp: t.hp, maxHp: t.hp, col: slot.col, row: slot.row });
+  const enemy = { typeIdx, hp: t.hp, maxHp: t.hp, col: slot.col, row: slot.row };
+  enemy.spine = createEnemySpine(t.sprite);
+  state.enemies.push(enemy);
 }
 
 function initArena() {
@@ -99,6 +101,7 @@ function calcTrajectory(sx, sy, tx, ty) {
     if (y - BALL_R < FT) { y = FT + BALL_R; vy = Math.abs(vy); }
     // Enemy collision in trajectory
     for (const e of state.enemies) {
+      if (e.dying) continue;
       const r = enemyRect(e);
       if (x + BALL_R <= r.x || x - BALL_R >= r.x + r.w ||
           y + BALL_R <= r.y || y - BALL_R >= r.y + r.h) continue;
@@ -159,6 +162,7 @@ function stepBall() {
   // Enemy collision
   let hitEnemy = null;
   for (const e of state.enemies) {
+    if (e.dying) continue;
     const r = enemyRect(e);
     if (b.x + BALL_R <= r.x || b.x - BALL_R >= r.x + r.w ||
         b.y + BALL_R <= r.y || b.y - BALL_R >= r.y + r.h) continue;
@@ -188,14 +192,18 @@ function stepBall() {
       state.ngnEarned += payout;
       state.kills++;
       state.killsThisShot++;
-      state.shake = 10; // screen shake frames
+      state.shake = 10;
       updateWallet();
       const streak = state.winStreak + 1;
       setBanner(streak > 1 ? `win:${payout} 🔥×${streak}` : `win:${payout}`);
       addPopup(r.x + r.w / 2, r.y, `+${payout}`);
-      state.enemies = state.enemies.filter(x => x !== e);
+      e.dying = true;
+      enemyPlay(e, 'dead');
+      const deadRef = e;
+      setTimeout(() => { state.enemies = state.enemies.filter(x => x !== deadRef); }, 450);
       state.pendingSpawns++;
     } else {
+      enemyPlay(e, 'damage');
       setBanner(`-${dmg} hp! (${e.hp} left)`);
     }
   }
@@ -216,9 +224,9 @@ function stepBall() {
     state.ballActive = false;
     state.ball = null;
     state.trail = [];
-    state.trail = [];
     state.advancing = true;
     state.advanceOffset = 0;
+    state.enemies.forEach(e => { if (!e.dying) enemyPlay(e, 'move'); });
   }
 }
 
@@ -238,7 +246,7 @@ function finishAdvance() {
   state.round++;
   for (let i = 0; i < state.pendingSpawns; i++) spawnEnemy();
   state.pendingSpawns = 0;
-  if (state.enemies.some(e => enemyXY(e.col, e.row).y + ENEMY_H > DIVIDER_Y)) {
+  if (state.enemies.some(e => !e.dying && enemyXY(e.col, e.row).y + ENEMY_H > DIVIDER_Y)) {
     triggerBreach();
   } else {
     knightPlay('idle', true);
@@ -253,6 +261,12 @@ function addPopup(x, y, text) {
 }
 
 // ── UI HELPERS ───────────────────────────────────────────
+function enemyPlay(e, anim) {
+  if (!e.spine) return;
+  e.spine.animState.setAnimation(0, anim, false);
+  if (anim !== 'dead') e.spine.animState.addAnimation(0, 'idle', true, 0);
+}
+
 function setBanner(txt)  { document.getElementById('banner').textContent = txt; }
 function updateWallet()  {
   document.getElementById('wallet-amount').textContent =
@@ -419,7 +433,8 @@ function loop(ts) {
 
 // ── BOOT ──────────────────────────────────────────────────
 loadAssets(() => {
-  loadKnight(() => {});  // load Spine knight in parallel; game starts regardless
+  loadKnight(() => {});
+  loadEnemySpines(() => {}); // non-blocking; enemies fall back to static sprites until ready
   resetState();
   showBetUI();
   updateWallet();

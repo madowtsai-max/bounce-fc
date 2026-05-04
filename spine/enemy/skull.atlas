@@ -1,0 +1,41 @@
+
+skull.png
+size: 361,548
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+S_Leg_1
+  rotate: true
+  xy: 168, 457
+  size: 89, 93
+  orig: 89, 93
+  offset: 0, 0
+  index: -1
+S_Leg_2
+  rotate: true
+  xy: 81, 462
+  size: 84, 85
+  orig: 84, 85
+  offset: 0, 0
+  index: -1
+S_body
+  rotate: false
+  xy: 2, 308
+  size: 331, 147
+  orig: 331, 148
+  offset: 0, 1
+  index: -1
+S_eyes
+  rotate: false
+  xy: 2, 510
+  size: 77, 36
+  orig: 78, 36
+  offset: 1, 0
+  index: -1
+S_hat
+  rotate: false
+  xy: 2, 2
+  size: 357, 304
+  orig: 357, 304
+  offset: 0, 0
+  index: -1

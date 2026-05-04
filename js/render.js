@@ -141,13 +141,52 @@ function ballSpinePlay(anim, loop) {
 
 function drawKnight() {
   if (!knight) {
-    // Fallback: static sprite
     safeDrawImage(IMG.player, PLAYER_X - PLAYER_W / 2, PLAYER_Y - PLAYER_H + 10, PLAYER_W, PLAYER_H);
     return;
   }
   ctx.save();
   knight.renderer.draw(knight.skeleton);
   ctx.restore();
+}
+
+// ── SPINE ENEMIES ─────────────────────────────────────────
+const ENEMY_SKEL_DATA = {};
+let enemyRenderer = null;
+
+function loadEnemySpines(cb) {
+  const names = ['ghoul', 'skull', 'mage', 'king'];
+  let done = 0;
+  const finish = () => { if (++done === names.length) cb(); };
+  names.forEach(name => {
+    const imgEl = new Image();
+    imgEl.onerror = finish;
+    imgEl.onload = () => {
+      Promise.all([
+        fetch(`spine/enemy/${name}.atlas`).then(r => r.text()),
+        fetch(`spine/enemy/${name}.json`).then(r => r.json()),
+      ]).then(([atlasText, jsonData]) => {
+        const atlas = new spine.TextureAtlas(atlasText, () => new spine.canvas.CanvasTexture(imgEl));
+        const skelData = new spine.SkeletonJson(new spine.AtlasAttachmentLoader(atlas)).readSkeletonData(jsonData);
+        ENEMY_SKEL_DATA[name] = skelData;
+        finish();
+      }).catch(finish);
+    };
+    imgEl.src = `spine/enemy/${name}.png`;
+  });
+}
+
+function createEnemySpine(spriteName) {
+  const skelData = ENEMY_SKEL_DATA[spriteName];
+  if (!skelData) return null;
+  const skeleton = new spine.Skeleton(skelData);
+  skeleton.scaleX =  ENEMY_SCALE;
+  skeleton.scaleY = -ENEMY_SCALE;
+  const stateData = new spine.AnimationStateData(skelData);
+  stateData.defaultMix = 0.12;
+  const animState = new spine.AnimationState(stateData);
+  animState.setAnimation(0, 'enter', false);
+  animState.addAnimation(0, 'idle', true, 0);
+  return { skeleton, animState, lastTime: performance.now() / 1000 };
 }
 
 // ── CANVAS ───────────────────────────────────────────────
@@ -160,6 +199,9 @@ canvas.height = CH * DPR;
 canvas.style.width  = CW + 'px';
 canvas.style.height = CH + 'px';
 ctx.scale(DPR, DPR);
+
+enemyRenderer = new spine.canvas.SkeletonRenderer(ctx);
+enemyRenderer.debugRendering = false;
 
 // Aim-line canvas — z-index 11, above castle frame
 const aimCanvas = document.getElementById('aim-canvas');
@@ -179,38 +221,55 @@ function drawBackground() {
   safeDrawImage(IMG.bgField, 0, 0, CW, CH);
 }
 
+function drawHPBadge(e, x, y) {
+  const hpText = `${e.hp}/${e.maxHp}`;
+  ctx.save();
+  ctx.font = 'bold 9px Roboto';
+  ctx.textAlign = 'center';
+  const tw = ctx.measureText(hpText).width;
+  const pillW = tw + 8, pillH = 11;
+  const pillX = x + ENEMY_W / 2 - pillW / 2;
+  const pillY = y + ENEMY_H - pillH - 1;
+  const r = pillH / 2;
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
+  ctx.beginPath();
+  ctx.moveTo(pillX + r, pillY);
+  ctx.lineTo(pillX + pillW - r, pillY);
+  ctx.arc(pillX + pillW - r, pillY + r, r, -Math.PI / 2, 0);
+  ctx.lineTo(pillX + pillW, pillY + pillH - r);
+  ctx.arc(pillX + pillW - r, pillY + pillH - r, r, 0, Math.PI / 2);
+  ctx.lineTo(pillX + r, pillY + pillH);
+  ctx.arc(pillX + r, pillY + pillH - r, r, Math.PI / 2, Math.PI);
+  ctx.lineTo(pillX, pillY + r);
+  ctx.arc(pillX + r, pillY + r, r, Math.PI, -Math.PI / 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillText(hpText, x + ENEMY_W / 2, pillY + pillH - 2);
+  ctx.restore();
+}
+
 function drawEnemies() {
+  const now = performance.now() / 1000;
   state.enemies.forEach(e => {
     const { x, y } = enemyXY(e.col, e.row);
     const t = ENEMY_TYPES[e.typeIdx];
-    safeDrawImage(IMG[t.sprite], x, y, ENEMY_W, ENEMY_H);
-    // HP pill badge — centered, lower third of sprite
-    ctx.save();
-    const hpText = `${e.hp}/${e.maxHp}`;
-    ctx.font = 'bold 9px Roboto';
-    ctx.textAlign = 'center';
-    const tw = ctx.measureText(hpText).width;
-    const pillW = tw + 8;
-    const pillH = 11;
-    const pillX = x + ENEMY_W / 2 - pillW / 2;
-    const pillY = y + ENEMY_H - pillH - 1;
-    const r = pillH / 2;
-    ctx.fillStyle = 'rgba(0,0,0,0.72)';
-    ctx.beginPath();
-    ctx.moveTo(pillX + r, pillY);
-    ctx.lineTo(pillX + pillW - r, pillY);
-    ctx.arc(pillX + pillW - r, pillY + r, r, -Math.PI / 2, 0);
-    ctx.lineTo(pillX + pillW, pillY + pillH - r);
-    ctx.arc(pillX + pillW - r, pillY + pillH - r, r, 0, Math.PI / 2);
-    ctx.lineTo(pillX + r, pillY + pillH);
-    ctx.arc(pillX + r, pillY + pillH - r, r, Math.PI / 2, Math.PI);
-    ctx.lineTo(pillX, pillY + r);
-    ctx.arc(pillX + r, pillY + r, r, Math.PI, -Math.PI / 2);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.fillText(hpText, x + ENEMY_W / 2, pillY + pillH - 2);
-    ctx.restore();
+    if (e.spine && enemyRenderer) {
+      const { skeleton, animState } = e.spine;
+      const delta = Math.min(now - e.spine.lastTime, 0.05);
+      e.spine.lastTime = now;
+      animState.update(delta);
+      animState.apply(skeleton);
+      skeleton.x = x + ENEMY_W / 2;
+      skeleton.y = y + ENEMY_SPINE_Y_OFF;
+      skeleton.updateWorldTransform();
+      ctx.save();
+      enemyRenderer.draw(skeleton);
+      ctx.restore();
+    } else {
+      safeDrawImage(IMG[t.sprite], x, y, ENEMY_W, ENEMY_H);
+    }
+    if (!e.dying) drawHPBadge(e, x, y);
   });
 }
 
