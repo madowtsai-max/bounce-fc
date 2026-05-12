@@ -7,29 +7,26 @@ const URLS = {
   mage:    'images/mage.png',
   king:    'images/king.png',
   soccer:  'images/soccer.png',
+  smoke:   'images/smoke.png',
 };
 
 // ── LAYOUT ───────────────────────────────────────────────
-// bg.png is 1080×1920 drawn at 360×640 (exactly 1/3 scale).
-// Field boundaries from image proportions × (1/3):
-//   side dark bars ≈11% → FL=40, FR=320
-//   top dark bar   ≈8%  → FT=50
-//   grass-dirt     ≈80% → DIVIDER_Y=512
 const CW = 360, CH = 640;
 const COLS = 7, ROWS = 10;
-const CELL_W = 35;               // ENEMY_W(32) + 3px gap
-const CELL_H = 35;               // ENEMY_H(32) + 3px gap
-const FL = 40;
-const FR = 320;                  // castle wall (ball physics)
-const FT = 50;
-const FB = 620;                   // ball exit line
+const CELL_W = 36;               // ENEMY_W(32) + 4px gap — 7×36=252, centers in 360 at FL=FR=54
+const CELL_H = 36;               // ENEMY_H(32) + 4px gap — square cell, 7×36=252
+const FL = 54;
+const FR = CW - FL;              // 306
+const FT = 135;
+const FB = 620;                  // ball exit line
 const ENEMY_W = 32, ENEMY_H = 32;
-const GRID_LEFT = Math.round((CW - (COLS * ENEMY_W + (COLS - 1) * 3)) / 2); // 59 — centers 242px grid
+const GRID_LEFT = (CW - COLS * CELL_W) / 2; // 54 — grid fills field wall-to-wall
 const ENEMY_START_Y = FT;
-const DIVIDER_Y = 512;            // grass→dirt deadline
-const MAX_SPAWN_ROW = 7;          // guarantees ≥3 rounds before breach
-const PLAYER_X = CW / 2;         // 180
-const PLAYER_Y = 570;
+const DIVIDER_Y = 491;           // grass→dirt deadline (= grid bottom: 135 + 9×36 + 32)
+const MAX_SPAWN_ROW = 5;         // 4-row buffer before dead line
+const ENEMY_DIAG_CHANCE = 0.4;  // probability an enemy tries to advance diagonally
+const PLAYER_X = CW / 2;        // 180
+const PLAYER_Y = 561;
 const PLAYER_W = 60, PLAYER_H = 68;
 const BALL_R = 9;
 const BALL_SPEED = 9;

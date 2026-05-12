@@ -176,6 +176,7 @@ function loadEnemySpines(cb) {
 }
 
 function createEnemySpine(spriteName) {
+  if (spriteName === 'ghoul') return null; // spine/enemy/ghoul.png is wrong texture — use static PNG
   const skelData = ENEMY_SKEL_DATA[spriteName];
   if (!skelData) return null;
   const skeleton = new spine.Skeleton(skelData);
@@ -187,6 +188,84 @@ function createEnemySpine(spriteName) {
   animState.setAnimation(0, 'enter', false);
   animState.addAnimation(0, 'idle', true, 0);
   return { skeleton, animState, lastTime: performance.now() / 1000 };
+}
+
+// ── FRAME-SEQUENCE EFFECTS ────────────────────────────────
+const FX_FRAMES = { hit: [], smoke: [] };
+let fxLoaded = false;
+
+function loadFX(cb) {
+  let total = 7 + 17, done = 0;
+  const finish = () => { if (++done >= total) { fxLoaded = true; cb(); } };
+  for (let i = 0; i < 7; i++) {
+    const img = new Image();
+    img.onload = img.onerror = finish;
+    img.src = `images/fx/hit/hit${i}.png`;
+    FX_FRAMES.hit.push(img);
+  }
+  for (let i = 0; i < 17; i++) {
+    const img = new Image();
+    img.onload = img.onerror = finish;
+    img.src = `images/fx/smoke/smoke${String(i).padStart(2,'0')}.png`;
+    FX_FRAMES.smoke.push(img);
+  }
+}
+
+function spawnEffect(type, x, y, size, delay, alpha) {
+  if (!fxLoaded) return;
+  state.effects = state.effects || [];
+  const cfg = type === 'hit'
+    ? { frames: FX_FRAMES.hit,   size: 36, delay: 2 }
+    : { frames: FX_FRAMES.smoke, size: 80, delay: 3 };
+  state.effects.push({
+    frames: cfg.frames, frameIdx: 0, x, y, timer: 0,
+    size:  size  ?? cfg.size,
+    delay: delay ?? cfg.delay,
+    alpha: alpha ?? 1,
+    below: type === 'smoke',
+  });
+}
+
+function drawTrailPuffs() {
+  if (!state.trailPuffs || !state.trailPuffs.length) return;
+  const img = IMG.smoke;
+  const MAX_AGE = 30;
+  state.trailPuffs.forEach(p => {
+    const t = p.age / MAX_AGE;
+    const size = 20 + t * 30;  // 20px → 50px
+    const alpha = (1 - t) * 0.9;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    if (img && img.naturalWidth > 0) {
+      ctx.drawImage(img, p.x - size / 2, p.y - size / 2, size, size);
+    } else {
+      // fallback: white circle so we can confirm positioning
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, size / 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    p.age++;
+  });
+  state.trailPuffs = state.trailPuffs.filter(p => p.age < MAX_AGE);
+}
+
+function drawEffects(below) {
+  if (!state.effects || !state.effects.length) return;
+  state.effects.forEach(fx => {
+    if (!!fx.below !== !!below) return;
+    if (fx.frameIdx >= fx.frames.length) return;
+    const img = fx.frames[fx.frameIdx];
+    if (img && img.naturalWidth > 0) {
+      ctx.save();
+      ctx.globalAlpha = fx.alpha;
+      ctx.drawImage(img, fx.x - fx.size / 2, fx.y - fx.size / 2, fx.size, fx.size);
+      ctx.restore();
+    }
+    if (++fx.timer >= fx.delay) { fx.timer = 0; fx.frameIdx++; }
+  });
+  if (!below) state.effects = state.effects.filter(fx => fx.frameIdx < fx.frames.length);
 }
 
 // ── CANVAS ───────────────────────────────────────────────
@@ -252,7 +331,7 @@ function drawHPBadge(e, x, y) {
 function drawEnemies() {
   const now = performance.now() / 1000;
   state.enemies.forEach(e => {
-    const { x, y } = enemyXY(e.col, e.row);
+    const { x, y } = enemyXY(e.col, e.row, e._diagDir || 0);
     const t = ENEMY_TYPES[e.typeIdx];
     if (e.spine && enemyRenderer) {
       const { skeleton, animState } = e.spine;
@@ -268,6 +347,15 @@ function drawEnemies() {
       ctx.restore();
     } else {
       safeDrawImage(IMG[t.sprite], x, y, ENEMY_W, ENEMY_H);
+    }
+    if (e.hitFlash > 0) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = (e.hitFlash / 5) * 0.6;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x - 4, y - 4, ENEMY_W + 8, ENEMY_H + 8);
+      ctx.restore();
+      e.hitFlash--;
     }
     if (!e.dying) drawHPBadge(e, x, y);
   });
@@ -397,20 +485,6 @@ function drawHitFlash() {
   if (++f.age > 8) state.hitFlash = null;
 }
 
-function drawDivider() {
-  ctx.strokeStyle = 'rgba(255,60,60,0.75)';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([10, 5]);
-  ctx.beginPath();
-  ctx.moveTo(FL, DIVIDER_Y);
-  ctx.lineTo(FR, DIVIDER_Y);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = 'rgba(255,60,60,0.9)';
-  ctx.font = 'bold 8px Roboto';
-  ctx.textAlign = 'left';
-  ctx.fillText('DEAD LINE', FL + 2, DIVIDER_Y - 3);
-}
 
 function drawPopups() {
   state.popups.forEach(p => {
@@ -430,6 +504,33 @@ function drawPopups() {
   state.popups = state.popups.filter(p => p.age < p.maxAge);
 }
 
+function drawCombo() {
+  if (!state.ballActive || state.hitCombo < 1) return;
+  const flashT = state.comboFlash / 15;
+  const scale = 1 + flashT * 0.35;
+  if (state.comboFlash > 0) state.comboFlash--;
+
+  ctx.save();
+  ctx.translate(CW / 2, 538);
+  ctx.scale(scale, scale);
+  ctx.textAlign = 'center';
+
+  // Outline
+  ctx.font = 'bold 28px Roboto';
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+  ctx.strokeText(`×${state.hitCombo} HIT`, 0, 0);
+
+  // Fill — gradient gold→orange (swap font/style here later for art font)
+  const g = ctx.createLinearGradient(0, -24, 0, 4);
+  g.addColorStop(0, '#fff176');
+  g.addColorStop(1, '#ff6f00');
+  ctx.fillStyle = g;
+  ctx.fillText(`×${state.hitCombo} HIT`, 0, 0);
+
+  ctx.restore();
+}
+
 function render() {
   ctx.clearRect(0, 0, CW, CH);
   drawBackground();
@@ -446,14 +547,17 @@ function render() {
     ctx.save();
     ctx.translate(sx, sy);
     try {
-      drawDivider();
+      drawTrailPuffs();
       drawEnemies();
+      drawEffects(true);   // smoke death — on top of enemies
       if (state.screen === 'arena') {
-        drawAimLine();
         drawBall();
         drawHitFlash();
       }
-      drawPlayer();   // knight on top of ball
+      drawEffects(false);  // hit sparks — on top
+      drawAimLine();
+      drawPlayer();
+      drawCombo();
       drawPopups();
     } finally {
       ctx.restore();

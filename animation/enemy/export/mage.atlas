@@ -1,0 +1,34 @@
+
+mage.png
+size: 467,497
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+M_cape
+  rotate: true
+  xy: 2, 89
+  size: 406, 169
+  orig: 406, 169
+  offset: 0, 0
+  index: -1
+M_card
+  rotate: false
+  xy: 173, 2
+  size: 185, 179
+  orig: 185, 180
+  offset: 0, 1
+  index: -1
+M_eyes
+  rotate: false
+  xy: 2, 61
+  size: 58, 26
+  orig: 58, 26
+  offset: 0, 0
+  index: -1
+M_head
+  rotate: true
+  xy: 173, 183
+  size: 312, 292
+  orig: 312, 292
+  offset: 0, 0
+  index: -1

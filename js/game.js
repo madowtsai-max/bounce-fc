@@ -17,18 +17,21 @@ function resetState() {
     ngnSpent:      0,
     ngnEarned:     0,
     popups:        [],
+    effects:       [],
+    trailPuffs:    [],
     hitFlash:      null,
     pendingSpawns: 0,
     ballSquash:        0,
     knightReturnTimer: 0,
-    // New fields
-    trail:         [],      // ball trail positions
-    shake:         0,       // screen shake frames remaining
-    winStreak:     0,       // consecutive shots with a kill
-    killsThisShot: 0,       // kills in current shot
-    round:         0,       // rounds completed (advances)
-    advancing:     false,   // true while advance animation plays
-    advanceOffset: 0,       // current y offset during advance animation (0→CELL_H)
+    trail:         [],
+    shake:         0,
+    winStreak:     0,
+    killsThisShot: 0,
+    hitCombo:      0,
+    comboFlash:    0,
+    round:         0,
+    advancing:     false,
+    advanceOffset: 0,
   };
 }
 
@@ -63,9 +66,10 @@ function initArena() {
 }
 
 // ── GEOMETRY ─────────────────────────────────────────────
-function enemyXY(col, row) {
+function enemyXY(col, row, diagDir = 0) {
+  const frac = state.advancing ? state.advanceOffset / CELL_H : 0;
   return {
-    x: GRID_LEFT + col * CELL_W,
+    x: GRID_LEFT + col * CELL_W + diagDir * CELL_W * frac,
     y: ENEMY_START_Y + row * CELL_H + (state.advanceOffset || 0),
   };
 }
@@ -129,6 +133,8 @@ function shoot() {
   state.ngnSpent += bet;
   state.shotsFired++;
   state.killsThisShot = 0;
+  state.hitCombo = 0;
+  state.comboFlash = 0;
   state.receivedThisShot = false;
   state.trail = [];  // trail positions for fading dot effect
   updateWallet();
@@ -181,8 +187,11 @@ function stepBall() {
   }
 
   if (hitEnemy) {
+    state.hitCombo++;
+    state.comboFlash = 15;
     const e = hitEnemy;
     const r = enemyRect(e);
+    const cx = state.hitFlash.x, cy = state.hitFlash.y;
     const t = ENEMY_TYPES[e.typeIdx];
     const dmg = t.dmgMin + Math.floor(Math.random() * (t.dmgMax - t.dmgMin + 1));
     e.hp = Math.max(0, e.hp - dmg);
@@ -198,11 +207,16 @@ function stepBall() {
       setBanner(streak > 1 ? `win:${payout} 🔥×${streak}` : `win:${payout}`);
       addPopup(r.x + r.w / 2, r.y, `+${payout}`);
       e.dying = true;
+      e.hitFlash = 5;
+      spawnEffect('hit',   cx, cy);
+      spawnEffect('smoke', r.x + r.w / 2, r.y + r.h / 2);
       enemyPlay(e, 'dead');
       const deadRef = e;
       setTimeout(() => { state.enemies = state.enemies.filter(x => x !== deadRef); }, 450);
       state.pendingSpawns++;
     } else {
+      e.hitFlash = 5;
+      spawnEffect('hit', cx, cy);
       enemyPlay(e, 'damage');
       setBanner(`-${dmg} hp! (${e.hp} left)`);
     }
@@ -224,6 +238,7 @@ function stepBall() {
     state.ballActive = false;
     state.ball = null;
     state.trail = [];
+    planAdvanceMoves();
     state.advancing = true;
     state.advanceOffset = 0;
     state.enemies.forEach(e => { if (!e.dying) enemyPlay(e, 'move'); });
@@ -231,9 +246,24 @@ function stepBall() {
 }
 
 // ── ADVANCE ANIMATION ────────────────────────────────────
+const TRAIL_SPAWN_AT = [1, Math.round(CELL_H / 2), CELL_H - 2];
+
+function spawnTrailPuffs() {
+  state.enemies.forEach(e => {
+    if (e.dying) return;
+    const { x, y } = enemyXY(e.col, e.row);
+    state.trailPuffs.push({
+      x: x + ENEMY_W / 2 + (Math.random() - 0.5) * 8,
+      y: y + ENEMY_H,
+      age: 0,
+    });
+  });
+}
+
 function tickAdvance() {
   if (!state.advancing) return;
-  state.advanceOffset += 3; // ~12 frames to complete at 35px
+  state.advanceOffset += 1;
+  if (TRAIL_SPAWN_AT.includes(state.advanceOffset)) spawnTrailPuffs();
   if (state.advanceOffset >= CELL_H) {
     state.advanceOffset = 0;
     state.advancing = false;
@@ -241,16 +271,59 @@ function tickAdvance() {
   }
 }
 
+function planAdvanceMoves() {
+  const alive = state.enemies.filter(e => !e.dying);
+  for (let i = alive.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [alive[i], alive[j]] = [alive[j], alive[i]];
+  }
+  const claimed = new Set();
+  alive.forEach(e => {
+    const newRow = e.row + 1;
+    const wantDir = Math.random() < ENEMY_DIAG_CHANCE
+      ? (Math.random() < 0.5 ? -1 : 1) : 0;
+    // Try: preferred direction → straight → other diagonal
+    const candidates = wantDir !== 0 ? [wantDir, 0, -wantDir] : [0, -1, 1];
+    for (const dir of candidates) {
+      const dc = e.col + dir;
+      if (dc < 0 || dc >= COLS) continue;
+      const key = `${dc},${newRow}`;
+      if (!claimed.has(key)) {
+        claimed.add(key);
+        e._diagDir = dir;
+        return;
+      }
+    }
+    e._diagDir = 0; // all three blocked — accept overlap (needs 3 enemies converging on 1 cell)
+  });
+}
+
 function finishAdvance() {
-  state.enemies.forEach(e => e.row++);
+  // Apply pre-planned moves (direction was decided in planAdvanceMoves before animation)
+  state.enemies.forEach(e => {
+    if (!e.dying && e._diagDir) e.col = Math.max(0, Math.min(COLS - 1, e.col + e._diagDir));
+    e._diagDir = 0;
+    e.row++;
+  });
+
   state.round++;
   for (let i = 0; i < state.pendingSpawns; i++) spawnEnemy();
   state.pendingSpawns = 0;
-  if (state.enemies.some(e => !e.dying && enemyXY(e.col, e.row).y + ENEMY_H > DIVIDER_Y)) {
-    triggerBreach();
+
+  const breached = state.enemies.filter(e => !e.dying && enemyXY(e.col, e.row).y + ENEMY_H > DIVIDER_Y);
+  if (breached.length > 0) {
+    breached.forEach(e => {
+      const { x, y } = enemyXY(e.col, e.row);
+      spawnEffect('hit',   x + ENEMY_W / 2, y + ENEMY_H / 2);
+      spawnEffect('smoke', x + ENEMY_W / 2, y + ENEMY_H / 2);
+      e.dying = true;
+      enemyPlay(e, 'dead');
+      const ref = e;
+      setTimeout(() => { state.enemies = state.enemies.filter(x => x !== ref); }, 450);
+    });
+    setTimeout(triggerBreach, 700);
   } else {
     knightPlay('idle', true);
-    const spd = ballSpeed().toFixed(1);
     setBanner(`Round ${state.round} — speed ×${(ballSpeed()/BALL_SPEED).toFixed(1)}`);
     setTimeout(() => { if (state.screen === 'arena') setBanner('Aim & Shoot!'); }, 1200);
   }
@@ -434,7 +507,8 @@ function loop(ts) {
 // ── BOOT ──────────────────────────────────────────────────
 loadAssets(() => {
   loadKnight(() => {});
-  loadEnemySpines(() => {}); // non-blocking; enemies fall back to static sprites until ready
+  loadEnemySpines(() => {});
+  loadFX(() => {});
   resetState();
   showBetUI();
   updateWallet();

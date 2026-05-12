@@ -1,0 +1,20 @@
+
+ball.png
+size: 137,72
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+soccer
+  rotate: false
+  xy: 2, 2
+  size: 68, 68
+  orig: 70, 70
+  offset: 1, 1
+  index: -1
+soccer_idle
+  rotate: false
+  xy: 72, 7
+  size: 63, 63
+  orig: 63, 63
+  offset: 0, 0
+  index: -1
