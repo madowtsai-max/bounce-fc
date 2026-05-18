@@ -1,0 +1,41 @@
+
+ghoul.png
+size: 526,346
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+G_arm
+  rotate: true
+  xy: 427, 105
+  size: 98, 97
+  orig: 99, 97
+  offset: 1, 0
+  index: -1
+G_body
+  rotate: true
+  xy: 2, 2
+  size: 342, 372
+  orig: 342, 374
+  offset: 0, 1
+  index: -1
+G_eyes
+  rotate: true
+  xy: 376, 7
+  size: 196, 49
+  orig: 197, 49
+  offset: 1, 0
+  index: -1
+G_leg
+  rotate: true
+  xy: 427, 5
+  size: 98, 80
+  orig: 98, 80
+  offset: 0, 0
+  index: -1
+G_mouth
+  rotate: true
+  xy: 376, 205
+  size: 139, 132
+  orig: 139, 132
+  offset: 0, 0
+  index: -1
