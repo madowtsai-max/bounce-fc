@@ -32,6 +32,10 @@ function resetState() {
     round:         0,
     advancing:     false,
     advanceOffset: 0,
+    confirming:    false,
+    breaching:     false,
+    coins:         [],
+    _walletTarget: null,
   };
 }
 
@@ -56,6 +60,67 @@ function spawnEnemy() {
   state.enemies.push(enemy);
 }
 
+// ── COIN ANIMATION ───────────────────────────────────────
+function spawnCoins(cx, cy, value) {
+  const count = value >= 500 ? 3 : value >= 100 ? 2 : 1;
+  for (let i = 0; i < count; i++) {
+    state.coins.push({
+      x: cx + (Math.random() - 0.5) * 20,
+      y: cy,
+      vx: (Math.random() - 0.5) * 4,
+      vy: -2 - Math.random() * 3,
+      floorY: cy + 14,
+      phase: 'scatter',
+      delay: 18 + i * 10,
+      age: 0,
+      startX: 0, startY: 0, flyAge: 0,
+    });
+  }
+}
+
+function flashWallet() {
+  const el = document.getElementById('wallet');
+  el.classList.remove('wallet-flash');
+  void el.offsetWidth; // reflow to restart animation
+  el.classList.add('wallet-flash');
+}
+
+function updateCoins() {
+  if (!state.coins.length) return;
+  if (!state._walletTarget) {
+    const wrap   = document.getElementById('wrap');
+    const wallet = document.getElementById('wallet');
+    const wr     = wallet.getBoundingClientRect();
+    const wrapR  = wrap.getBoundingClientRect();
+    state._walletTarget = {
+      x: wr.left - wrapR.left + wr.width  / 2,
+      y: wr.top  - wrapR.top  + wr.height / 2,
+    };
+  }
+  const { x: tx, y: ty } = state._walletTarget;
+  state.coins = state.coins.filter(coin => {
+    coin.age++;
+    if (coin.phase === 'scatter') {
+      coin.vy += 0.4;
+      coin.x  += coin.vx;
+      coin.y  += coin.vy;
+      if (coin.y >= coin.floorY) { coin.y = coin.floorY; coin.vy = 0; coin.vx *= 0.5; }
+      if (coin.age >= coin.delay) {
+        coin.startX = coin.x; coin.startY = coin.y;
+        coin.flyAge = 0;      coin.phase = 'fly';
+      }
+    } else if (coin.phase === 'fly') {
+      const FLY = 30;
+      const t    = Math.min(++coin.flyAge / FLY, 1);
+      const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      coin.x = coin.startX + (tx - coin.startX) * ease;
+      coin.y = coin.startY + (ty - coin.startY) * ease - Math.sin(t * Math.PI) * 50;
+      if (t >= 1) { flashWallet(); return false; }
+    }
+    return true;
+  });
+}
+
 function initArena() {
   state.enemies = [];
   for (let r = 0; r < 3; r++)
@@ -77,8 +142,8 @@ function enemyXY(col, row, diagDir = 0) {
 function enemyRect(e) {
   const { x, y } = enemyXY(e.col, e.row);
   return {
-    x: x + ENEMY_HIT_PAD_X,
-    y: y + ENEMY_HIT_PAD_Y,
+    x: x + (CELL_W - ENEMY_W) / 2 + ENEMY_HIT_PAD_X,
+    y: y + (CELL_H - ENEMY_H) / 2 + ENEMY_HIT_PAD_Y,
     w: ENEMY_W - ENEMY_HIT_PAD_X * 2,
     h: ENEMY_H - ENEMY_HIT_PAD_Y * 2,
   };
@@ -126,7 +191,7 @@ function calcTrajectory(sx, sy, tx, ty) {
 
 // ── PHYSICS ──────────────────────────────────────────────
 function shoot() {
-  if (state.ballActive || state.advancing) return;
+  if (state.ballActive || state.advancing || state.breaching) return;
   const bet = state.bet;
   if (state.balance < bet) { setBanner('Not enough NGN!'); return; }
   state.balance -= bet;
@@ -146,6 +211,7 @@ function shoot() {
   state.ball = { x: sx, y: sy, vx: (dx / len) * spd, vy: (dy / len) * spd };
   state.ballActive = true;
   state.isAiming = false;
+  SFX.shoot();
   knightPlay('attack', false);
   setBanner('…');
 }
@@ -159,7 +225,7 @@ function stepBall() {
   state.trail.push({ x: b.x, y: b.y });
   if (state.trail.length > 6) state.trail.shift();
 
-  // Wall bounces — trigger squash on impact
+  // Wall bounces
   if (b.x - BALL_R < FL) { b.x = FL + BALL_R; b.vx = Math.abs(b.vx);  state.ballSquash = 5; }
   if (b.x + BALL_R > FR) { b.x = FR - BALL_R; b.vx = -Math.abs(b.vx); state.ballSquash = 5; }
   if (b.y - BALL_R < FT) { b.y = FT + BALL_R; b.vy = Math.abs(b.vy);  state.ballSquash = 5; }
@@ -206,8 +272,10 @@ function stepBall() {
       const streak = state.winStreak + 1;
       setBanner(streak > 1 ? `win:${payout} 🔥×${streak}` : `win:${payout}`);
       addPopup(r.x + r.w / 2, r.y, `+${payout}`);
+      spawnCoins(r.x + r.w / 2, r.y + r.h / 2, payout);
       e.dying = true;
       e.hitFlash = 5;
+      SFX.kill();
       spawnEffect('hit',   cx, cy);
       spawnEffect('smoke', r.x + r.w / 2, r.y + r.h / 2);
       enemyPlay(e, 'dead');
@@ -216,6 +284,7 @@ function stepBall() {
       state.pendingSpawns++;
     } else {
       e.hitFlash = 5;
+      SFX.hit();
       spawnEffect('hit', cx, cy);
       enemyPlay(e, 'damage');
       setBanner(`-${dmg} hp! (${e.hp} left)`);
@@ -239,6 +308,7 @@ function stepBall() {
     state.ball = null;
     state.trail = [];
     planAdvanceMoves();
+    SFX.advance();
     state.advancing = true;
     state.advanceOffset = 0;
     state.enemies.forEach(e => { if (!e.dying) enemyPlay(e, 'move'); });
@@ -253,8 +323,8 @@ function spawnTrailPuffs() {
     if (e.dying) return;
     const { x, y } = enemyXY(e.col, e.row);
     state.trailPuffs.push({
-      x: x + ENEMY_W / 2 + (Math.random() - 0.5) * 8,
-      y: y + ENEMY_H,
+      x: x + CELL_W / 2 + (Math.random() - 0.5) * 8,
+      y: y + CELL_H,
       age: 0,
     });
   });
@@ -312,10 +382,12 @@ function finishAdvance() {
 
   const breached = state.enemies.filter(e => !e.dying && enemyXY(e.col, e.row).y + ENEMY_H > DIVIDER_Y);
   if (breached.length > 0) {
+    state.breaching = true;
+    state.isAiming = false;
     breached.forEach(e => {
       const { x, y } = enemyXY(e.col, e.row);
-      spawnEffect('hit',   x + ENEMY_W / 2, y + ENEMY_H / 2);
-      spawnEffect('smoke', x + ENEMY_W / 2, y + ENEMY_H / 2);
+      spawnEffect('hit',   x + CELL_W / 2, y + CELL_H / 2);
+      spawnEffect('smoke', x + CELL_W / 2, y + CELL_H / 2);
       e.dying = true;
       enemyPlay(e, 'dead');
       const ref = e;
@@ -361,7 +433,7 @@ function formatBet(v) {
 }
 function syncSliderFill(slider) {
   const pct = ((+slider.value - +slider.min) / (+slider.max - +slider.min) * 100).toFixed(1);
-  slider.style.background = `linear-gradient(to right,#f33 0%,#f33 ${pct}%,rgba(255,255,255,.2) ${pct}%,rgba(255,255,255,.2) 100%)`;
+  slider.style.background = `linear-gradient(to right,#ffa063 0%,#ffa063 ${pct}%,#877061 ${pct}%,#877061 100%)`;
 }
 function updateBetDisplay() {
   const slider = document.getElementById('bet-slider');
@@ -371,17 +443,46 @@ function updateBetDisplay() {
 }
 function showBetUI() {
   document.getElementById('bet-slider-wrap').style.display = 'block';
-  document.getElementById('action-btn').style.display = 'block';
-  document.getElementById('action-btn').textContent = 'BET';
-  document.getElementById('bet-display').style.marginBottom = '8px';
+  document.getElementById('bet-display').style.display = 'flex';
+  document.getElementById('bet-display').style.marginBottom = '28px';
+  document.getElementById('one-tap-row').style.display = 'none';
+  const btn = document.getElementById('action-btn');
+  btn.style.display = 'block';
+  btn.textContent = 'START';
+  btn.classList.remove('kick');
+}
+function isOneTapOn() {
+  return localStorage.getItem('bounceFcOneTap') === '1';
 }
 function hideArenaUI() {
   document.getElementById('bet-slider-wrap').style.display = 'none';
+  document.getElementById('one-tap-row').style.display = 'none';
+  document.getElementById('one-tap-corner').style.display = 'none';
 }
 function showArenaUI() {
   hideArenaUI();
+  document.getElementById('bet-display').style.display = 'none';
+  document.getElementById('one-tap-corner').style.display = 'flex';
   document.getElementById('action-btn').style.display = 'none';
-  document.getElementById('bet-display').style.marginBottom = '14px';
+}
+function showBetConfirm() {
+  const fmt = v => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  document.getElementById('bet-confirm-amount').textContent = fmt(state.bet);
+  document.getElementById('bottom').style.display = 'none';
+  const el = document.getElementById('bet-confirm');
+  el.style.display = 'flex';
+  el.offsetHeight; // force reflow for transition
+  el.classList.add('visible');
+  state.confirming = true;
+}
+function hideBetConfirm() {
+  if (state.screen !== 'arena') {
+    document.getElementById('bottom').style.display = 'flex';
+  }
+  const el = document.getElementById('bet-confirm');
+  el.classList.remove('visible');
+  state.confirming = false;
+  setTimeout(() => { el.style.display = 'none'; }, 230);
 }
 
 // ── SCREEN TRANSITIONS ────────────────────────────────────
@@ -391,22 +492,29 @@ function triggerBreach() {
   _sessionBest = Math.max(_sessionBest, state.ngnEarned);
   state.screen = 'breach';
   document.getElementById('breach').style.display = 'flex';
-  document.getElementById('stat-shots').textContent = state.shotsFired;
-  document.getElementById('stat-kills').textContent = state.kills;
-  document.getElementById('stat-spent').textContent = state.ngnSpent.toLocaleString();
-  document.getElementById('stat-earned').textContent = state.ngnEarned.toLocaleString();
-  const bestEl = document.getElementById('stat-best');
-  bestEl.textContent = _sessionBest.toLocaleString();
+  const fmt = v => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  document.getElementById('breach-amount').textContent = fmt(state.ngnEarned);
+  const bestEl = document.getElementById('breach-best');
+  bestEl.textContent = 'BEST: ' + fmt(_sessionBest);
   bestEl.style.color = state.ngnEarned >= _sessionBest ? '#ffd700' : '#fff';
+  document.getElementById('breach-stats').innerHTML =
+    `Shots: ${state.shotsFired} &nbsp;·&nbsp; Kills: ${state.kills}`;
   hideArenaUI();
 }
 function goToBet() {
   resetState();
+  // Restore dark mask for bet screen (instant, no transition)
+  const mask = document.getElementById('bg-mask');
+  mask.style.transition = 'none';
+  mask.style.opacity = '1';
+  requestAnimationFrame(() => { mask.style.transition = ''; });
   showBetUI();
   updateWallet();
   updateBetDisplay();
   setBanner('Ready');
   document.getElementById('breach').style.display = 'none';
+  document.getElementById('bet-confirm').classList.remove('visible');
+  document.getElementById('bet-confirm').style.display = 'none';
 }
 function goToArena() {
   state.screen = 'arena';
@@ -440,7 +548,7 @@ function getCanvasPos(e) {
 }
 
 canvas.addEventListener('pointerdown', e => {
-  if (state.screen !== 'arena' || state.ballActive || state.advancing) return;
+  if (state.screen !== 'arena' || state.ballActive || state.advancing || state.breaching) return;
   e.preventDefault();
   const p = getCanvasPos(e);
   state.isAiming = true;
@@ -450,30 +558,88 @@ canvas.addEventListener('pointerdown', e => {
 }, { passive: false });
 
 canvas.addEventListener('pointermove', e => {
-  if (!state.isAiming || state.screen !== 'arena' || state.ballActive) return;
+  if (!state.isAiming || state.screen !== 'arena' || state.ballActive || state.breaching) return;
   const p = getCanvasPos(e);
   state.aimX = p.x;
   state.aimY = Math.min(p.y, PLAYER_Y - PLAYER_H - 10);
 });
 
-canvas.addEventListener('pointerup', e => {
-  if (state.screen !== 'arena' || state.ballActive || state.advancing || !state.isAiming) return;
+canvas.addEventListener('pointerup', () => {
+  if (state.screen !== 'arena' || state.ballActive || state.advancing || state.breaching || !state.isAiming) return;
   state.isAiming = false;
-  shoot();
+  if (isOneTapOn()) {
+    shoot();
+  } else {
+    showBetConfirm();
+  }
 });
 
 canvas.addEventListener('pointercancel', () => { state.isAiming = false; });
 
-document.getElementById('action-btn').addEventListener('click', () => {
-  if (state.screen === 'bet') {
-    if (state.bet > state.balance) { setBanner('Bet exceeds balance!'); return; }
-    goToArena();
+document.getElementById('action-btn').addEventListener('click', function() {
+  if (state.screen !== 'bet') return;
+  if (state.bet > state.balance) { setBanner('Bet exceeds balance!'); return; }
+  const btn = this;
+  btn.disabled = true;
+  document.getElementById('bg-mask').style.opacity = '0';
+  setTimeout(() => { btn.disabled = false; goToArena(); }, 500);
+});
+
+document.getElementById('btn-confirm-cancel').addEventListener('click', hideBetConfirm);
+document.getElementById('btn-confirm-ok').addEventListener('click', () => {
+  const el = document.getElementById('bet-confirm');
+  el.classList.remove('visible');
+  el.style.display = 'none';
+  state.confirming = false;
+  if (state.screen === 'arena') {
+    document.getElementById('bottom').style.display = 'none';
+    shoot();
+  } else {
+    document.getElementById('bg-mask').style.opacity = '0';
+    setTimeout(goToArena, 500);
   }
+});
+
+document.getElementById('one-tap-cb').addEventListener('change', function () {
+  localStorage.setItem('bounceFcOneTap', this.checked ? '1' : '0');
+  if (state.screen === 'arena') showArenaUI();
+});
+document.getElementById('one-tap-corner-cb').addEventListener('change', function () {
+  localStorage.setItem('bounceFcOneTap', this.checked ? '1' : '0');
+  if (state.screen === 'arena') showArenaUI();
 });
 document.getElementById('btn-back').addEventListener('click', () => {
   if (state.screen === 'arena') goToBet();
 });
+
+// ── MENU PANEL ────────────────────────────────────────────
+function openMenu() {
+  const bgmCb  = document.getElementById('menu-bgm-cb');
+  const sfxCb  = document.getElementById('menu-sfx-cb');
+  bgmCb.checked = !BGM.isMuted;
+  sfxCb.checked = !SFX.isSfxMuted;
+  const panel = document.getElementById('menu-panel');
+  panel.style.display = 'block';
+  panel.offsetHeight; // reflow
+  panel.classList.add('open');
+}
+function closeMenu() {
+  const panel = document.getElementById('menu-panel');
+  panel.classList.remove('open');
+  setTimeout(() => { panel.style.display = 'none'; }, 260);
+}
+
+document.getElementById('btn-menu').addEventListener('click', openMenu);
+document.getElementById('menu-backdrop').addEventListener('click', closeMenu);
+
+document.getElementById('menu-bgm-cb').addEventListener('change', function() {
+  BGM.toggleMute();
+});
+document.getElementById('menu-sfx-cb').addEventListener('change', function() {
+  SFX.toggleSfxMute();
+});
 document.getElementById('btn-siege').addEventListener('click', siegeAgain);
+document.getElementById('btn-change-bet').addEventListener('click', goToBet);
 
 document.getElementById('bet-slider').addEventListener('input', function() {
   state.bet = sliderToBet(+this.value);
@@ -498,6 +664,7 @@ function loop(ts) {
         }
       }
     }
+    updateCoins();
     render();
   } catch (err) {
     console.error('Game loop error:', err);
@@ -505,6 +672,31 @@ function loop(ts) {
 }
 
 // ── BOOT ──────────────────────────────────────────────────
+const loadingFill = document.getElementById('loading-bar-fill');
+const loadingEl   = document.getElementById('loading');
+
+let fakeProgress = 0;
+let realLoadDone = false;
+
+// Fast 0→90%, then 3× faster for last 10% (waits for real load to allow 100)
+const barTimer = setInterval(() => {
+  const step = fakeProgress < 90 ? 1.5 : 0.21;
+  const cap  = realLoadDone ? 100 : 99.5;
+  fakeProgress = Math.min(fakeProgress + step, cap);
+  loadingFill.style.width = fakeProgress + '%';
+  if (fakeProgress >= 100) {
+    clearInterval(barTimer);
+    setTimeout(() => {
+      loadingEl.classList.add('done');
+      setTimeout(() => { loadingEl.style.display = 'none'; }, 520);
+    }, 200);
+  }
+}, 16);
+
+// Start BGM on first user gesture anywhere in the game
+const onLoadingTap = () => { BGM.play(); document.removeEventListener('pointerdown', onLoadingTap); };
+document.addEventListener('pointerdown', onLoadingTap);
+
 loadAssets(() => {
   loadKnight(() => {});
   loadEnemySpines(() => {});
@@ -513,5 +705,11 @@ loadAssets(() => {
   showBetUI();
   updateWallet();
   updateBetDisplay();
+  const oneTapOn = isOneTapOn();
+  document.getElementById('one-tap-cb').checked = oneTapOn;
+  document.getElementById('one-tap-corner-cb').checked = oneTapOn;
+  BGM.init();
+  document.getElementById('bgm-btn').addEventListener('click', () => BGM.toggleMute());
   loop(0);
+  realLoadDone = true; // lets bar reach 100% and show TAP TO START
 });

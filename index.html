@@ -40,64 +40,52 @@ canvas {
   background:linear-gradient(to bottom,rgba(0,0,0,.5),transparent);
   z-index:20;
 }
-#btn-back {
-  color:#fff;
-  font-size:22px;
-  cursor:pointer;
-  background:none;
-  border:none;
-  line-height:1;
+#header-left {
+  display:flex; align-items:center; gap:8px;
 }
+#btn-back, #btn-menu {
+  background:none; border:none;
+  cursor:pointer; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  width:24px; height:24px; flex-shrink:0;
+}
+#btn-back img, #btn-menu img { display:block; }
 #wallet {
   position:relative;
-  height:28px;
-  width:88px;
+  height:28px; width:84px;
   cursor:pointer;
 }
-#wallet-bg {
+#wallet > img {
   position:absolute;
-  inset:0;
-  width:100%; height:100%;
-  object-fit:fill;
-}
-#wallet-outline {
-  position:absolute;
-  inset:0;
-  width:100%; height:100%;
-  object-fit:fill;
-}
-#wallet-label {
-  position:absolute;
-  top:-1px; left:50%;
-  transform:translateX(-50%);
-  font-size:8px; font-weight:700;
-  color:#fff; white-space:nowrap;
+  inset:0; width:100%; height:100%;
 }
 #wallet-amount {
   position:absolute;
-  top:9px; left:50%;
-  transform:translateX(-50%);
-  font-size:12px; font-weight:500;
+  top:14px; left:50%;
+  transform:translate(-50%,-50%);
+  font-size:11px; font-weight:600;
   color:#fff; white-space:nowrap;
 }
 #logo {
-  font-size:16px; font-weight:700;
-  color:#fff; white-space:nowrap;
+  position:absolute;
+  left:50%; transform:translateX(-50%);
+  pointer-events:none;
 }
-#btn-menu {
-  color:#fff; font-size:22px;
-  background:none; border:none; cursor:pointer;
+#logo img {
+  height:30px; width:auto; display:block;
 }
 /* ── BANNER ── */
 #banner {
   position:absolute;
-  top:46px; left:0;
-  width:360px;
-  background:rgba(0,0,0,.55);
+  top:46px; left:50%;
+  transform:translateX(-50%);
+  width:242px; height:27px;
+  background:url('images/infobar.png') no-repeat center/100% 100%;
   color:#fff;
-  font-size:14px; font-weight:700;
+  font-size:12px; font-weight:700;
   text-align:center;
-  padding:4px 0;
+  line-height:27px;
+  white-space:nowrap;
   z-index:20;
 }
 /* ── BOTTOM UI ── */
@@ -109,6 +97,8 @@ canvas {
   flex-direction:column;
   z-index:20;
   pointer-events:none;
+  padding-top:80px;
+  background:linear-gradient(to top, rgba(0,0,0,.55) 0%, rgba(0,0,0,0) 100%);
 }
 #bottom > * {
   pointer-events:auto;
@@ -130,13 +120,13 @@ canvas {
 }
 /* Bet range slider */
 #bet-slider-wrap {
-  padding:4px 16px 0;
+  padding:4px 40px 0;
   margin-bottom:20px;
 }
 #bet-slider-amount {
   text-align:center;
-  color:rgba(255,255,255,.6);
-  font-size:12px; font-weight:600;
+  color:#fff;
+  font-size:12px; font-weight:700;
   letter-spacing:1.5px;
   text-transform:uppercase;
   margin-bottom:10px;
@@ -144,36 +134,37 @@ canvas {
 #bet-slider-row {
   display:flex;
   align-items:center;
-  gap:10px;
+  gap:8px;
 }
 .bet-range-label {
-  color:rgba(255,255,255,.45);
-  font-size:10px; font-weight:600;
+  color:#fff;
+  font-size:12px; font-weight:700;
   white-space:nowrap;
+  width:20px; text-align:center;
 }
 #bet-slider {
   -webkit-appearance:none;
   flex:1;
-  height:4px;
-  border-radius:2px;
+  height:6px;
+  border-radius:100px;
   outline:none;
   cursor:pointer;
-  background:rgba(255,255,255,.2);
+  background:#877061;
 }
 #bet-slider::-webkit-slider-thumb {
   -webkit-appearance:none;
-  width:22px; height:22px;
+  width:30px; height:30px;
   border-radius:50%;
   background:#fff;
-  box-shadow:0 0 10px rgba(255,51,51,.85), 0 2px 5px rgba(0,0,0,.5);
+  box-shadow:0 2px 6px rgba(0,0,0,.5);
   cursor:pointer;
 }
 #bet-slider::-moz-range-thumb {
-  width:22px; height:22px;
+  width:30px; height:30px;
   border-radius:50%;
   background:#fff;
   border:none;
-  box-shadow:0 0 10px rgba(255,51,51,.85), 0 2px 5px rgba(0,0,0,.5);
+  box-shadow:0 2px 6px rgba(0,0,0,.5);
   cursor:pointer;
 }
 #action-btn {
@@ -186,6 +177,39 @@ canvas {
   cursor:pointer;
   letter-spacing:.5px;
 }
+#action-btn.kick {
+  background:#2a9d2a;
+}
+/* One-Tap Bet toggle row */
+#one-tap-row {
+  display:none;
+  align-items:center;
+  justify-content:space-between;
+  padding:8px 16px;
+  background:rgba(0,0,0,0.5);
+}
+#one-tap-label {
+  color:#fff; font-size:12px; font-weight:700;
+  letter-spacing:1px;
+}
+#one-tap-switch {
+  position:relative; display:inline-block;
+  width:44px; height:24px; cursor:pointer;
+}
+#one-tap-switch input { display:none; }
+#one-tap-slider {
+  position:absolute; inset:0;
+  background:#555; border-radius:24px;
+  transition:background .2s;
+}
+#one-tap-slider::before {
+  content:''; position:absolute;
+  width:18px; height:18px; border-radius:50%;
+  background:#fff; left:3px; top:3px;
+  transition:transform .2s;
+}
+#one-tap-cb:checked + #one-tap-slider { background:#2a9d2a; }
+#one-tap-cb:checked + #one-tap-slider::before { transform:translateX(20px); }
 /* ── BREACH OVERLAY ── */
 #breach {
   display:none;
@@ -195,54 +219,308 @@ canvas {
   flex-direction:column;
   align-items:center;
   justify-content:center;
-  gap:14px;
+  gap:6px;
   z-index:30;
 }
 #breach h1 {
   font-size:48px; font-weight:900;
   color:#f33; letter-spacing:2px;
   text-shadow:0 0 20px rgba(255,50,50,.8);
+  margin-bottom:4px;
 }
-#breach .stat-row {
-  color:#fff; font-size:15px; font-weight:500;
-  text-align:center; line-height:1.8;
+#breach-you-win {
+  color:#fff; font-size:13px; font-weight:600;
+  letter-spacing:2px; text-transform:uppercase;
 }
-#breach .stat-row span { color:#ffd700; font-weight:700; }
+#breach-currency {
+  color:rgba(255,255,255,.6); font-size:12px; font-weight:500;
+  margin-top:2px;
+}
+#breach-amount {
+  color:#ffd700; font-size:50px; font-weight:900;
+  line-height:1;
+  text-shadow:0 0 24px rgba(255,215,0,.5);
+}
+#breach-best {
+  color:#fff; font-size:13px; font-weight:600;
+  margin-top:4px;
+}
+#breach-stats {
+  color:rgba(255,255,255,.65); font-size:13px; font-weight:500;
+}
+#breach-btns {
+  display:flex; gap:12px; margin-top:16px;
+}
+#btn-change-bet {
+  padding:14px 0;
+  width:132px;
+  background:#d48000;
+  border:none; color:#fff;
+  font-size:15px; font-weight:700;
+  border-radius:4px; cursor:pointer;
+}
 #btn-siege {
-  margin-top:8px;
-  padding:14px 48px;
-  background:#f33;
-  border:none;
-  color:#fff;
-  font-size:18px; font-weight:700;
-  border-radius:4px;
-  cursor:pointer;
+  padding:14px 0;
+  width:132px;
+  background:#2a9d2a;
+  border:none; color:#fff;
+  font-size:15px; font-weight:700;
+  border-radius:4px; cursor:pointer;
 }
+/* ── BG MASK (bet screen darkener) ── */
+#bg-mask {
+  position:absolute;
+  inset:0;
+  background:rgba(0,0,0,.5);
+  z-index:9;
+  pointer-events:none;
+  transition:opacity .5s ease;
+}
+/* ── ONE-TAP CORNER BADGE ── */
+#one-tap-corner {
+  display:none;
+  position:absolute;
+  bottom:62px; right:8px;
+  z-index:15;
+  flex-direction:column;
+  align-items:center;
+  gap:2px;
+  background:rgba(0,0,0,.5);
+  border-radius:8px;
+  padding:6px;
+  pointer-events:auto;
+}
+#one-tap-corner-label {
+  color:#fff; font-size:10px; font-weight:700;
+  letter-spacing:.5px; text-transform:uppercase;
+  white-space:nowrap;
+}
+#one-tap-corner-switch {
+  position:relative; display:inline-block;
+  width:41px; height:20px; cursor:pointer;
+}
+#one-tap-corner-switch input { display:none; }
+#one-tap-corner-slider {
+  position:absolute; inset:0;
+  background:#555; border-radius:20px;
+  transition:background .2s;
+}
+#one-tap-corner-slider::before {
+  content:''; position:absolute;
+  width:14px; height:14px; border-radius:50%;
+  background:#fff; left:3px; top:3px;
+  transition:transform .2s;
+}
+#one-tap-corner-cb:checked + #one-tap-corner-slider { background:#2a9d2a; }
+#one-tap-corner-cb:checked + #one-tap-corner-slider::before { transform:translateX(21px); }
+#bgm-btn {
+  display:none;
+  position:absolute;
+  bottom:62px; left:8px;
+  z-index:15;
+  background:rgba(0,0,0,.6);
+  border:none; border-radius:50%;
+  width:32px; height:32px;
+  font-size:16px; line-height:32px;
+  text-align:center; cursor:pointer;
+  padding:0; pointer-events:auto;
+}
+/* ── BET CONFIRM SHEET ── */
+#bet-confirm {
+  display:none;
+  position:absolute;
+  bottom:0; left:0;
+  width:360px;
+  flex-direction:column;
+  z-index:25;
+  transform:translateY(100%);
+  transition:transform .22s cubic-bezier(.32,.72,0,1);
+}
+#bet-confirm.visible { transform:translateY(0); }
+#bet-confirm-body {
+  background:#fff;
+  min-height:82px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:16px 20px;
+}
+#bet-confirm-msg {
+  font-size:18px; font-weight:700;
+  color:#181818; text-align:center;
+  line-height:1.25;
+}
+#bet-confirm-btns {
+  display:flex;
+  height:54px;
+}
+#btn-confirm-cancel {
+  width:120px; flex-shrink:0;
+  background:#2c2c2c; color:#fff;
+  font-size:18px; font-weight:700;
+  border:none; cursor:pointer;
+}
+#btn-confirm-ok {
+  flex:1;
+  background:#0d9737; color:#fff;
+  font-size:18px; font-weight:700;
+  border:none; cursor:pointer;
+}
+/* ── LOADING SCREEN ── */
+#loading {
+  position:absolute;
+  inset:0;
+  background:#070707;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:14px;
+  z-index:100;
+  transition:opacity .5s ease;
+  padding-bottom:32px;
+}
+#loading.done {
+  opacity:0;
+  pointer-events:none;
+}
+#loading-logo {
+  height:30px; width:auto; display:block;
+}
+#loading-bar-wrap {
+  width:230px; height:8px;
+  background:#510a0f;
+  border-radius:8px;
+  overflow:hidden;
+}
+#loading-bar-fill {
+  height:100%; width:0%;
+  background:#e11827;
+  border-radius:8px;
+}
+/* ── MENU PANEL ── */
+#menu-panel {
+  position:absolute;
+  inset:0;
+  z-index:50;
+  display:none;
+}
+#menu-panel.open { display:block; }
+#menu-backdrop {
+  position:absolute;
+  inset:0;
+  background:rgba(0,0,0,.6);
+}
+#menu-content {
+  position:absolute;
+  top:0; right:0;
+  width:220px; height:100%;
+  background:#111;
+  display:flex;
+  flex-direction:column;
+  padding:56px 0 24px;
+  transform:translateX(100%);
+  transition:transform .25s cubic-bezier(.32,.72,0,1);
+}
+#menu-panel.open #menu-content { transform:translateX(0); }
+#menu-title {
+  color:rgba(255,255,255,.4);
+  font-size:10px; font-weight:700;
+  letter-spacing:2px; text-transform:uppercase;
+  padding:0 20px 14px;
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+.menu-row {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:16px 20px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.menu-row-label {
+  display:flex; align-items:center; gap:10px;
+  color:#fff; font-size:14px; font-weight:600;
+}
+.menu-row-icon { font-size:18px; width:24px; text-align:center; }
+.menu-sw {
+  position:relative; display:inline-block;
+  width:44px; height:24px; cursor:pointer;
+}
+.menu-sw input { display:none; }
+.menu-sw-track {
+  position:absolute; inset:0;
+  background:#444; border-radius:24px;
+  transition:background .2s;
+}
+.menu-sw-track::before {
+  content:''; position:absolute;
+  width:18px; height:18px; border-radius:50%;
+  background:#fff; left:3px; top:3px;
+  transition:transform .2s;
+}
+.menu-sw input:checked + .menu-sw-track { background:#2a9d2a; }
+.menu-sw input:checked + .menu-sw-track::before { transform:translateX(20px); }
+/* ── WALLET FLASH (coin arrival) ── */
+@keyframes walletPulse {
+  0%   { filter: brightness(1)   drop-shadow(0 0 2px #ffd700); }
+  35%  { filter: brightness(2)   drop-shadow(0 0 10px #ffd700); }
+  100% { filter: brightness(1)   drop-shadow(0 0 0px  #ffd700); }
+}
+.wallet-flash { animation: walletPulse .4s ease-out forwards; }
 /* popups rendered on canvas — no DOM class needed */
 </style>
 </head>
 <body>
 <div id="wrap">
+  <!-- Loading screen -->
+  <div id="loading">
+    <img id="loading-logo" src="images/header/Logo.png" alt="Bounce FC">
+    <div id="loading-bar-wrap">
+      <div id="loading-bar-fill"></div>
+    </div>
+  </div>
+
   <canvas id="canvas" width="360" height="640"></canvas>
+
+  <!-- Dark overlay on bet screen, fades out on START -->
+  <div id="bg-mask"></div>
 
   <!-- Foreground castle frame — sits above canvas, below UI, transparent center -->
   <img id="fg-frame" src="images/castle-frame.png"
        style="position:absolute;top:0;left:0;width:360px;height:640px;pointer-events:none;z-index:10;" alt="">
 
+
   <!-- Aim line overlay — above castle frame, below HUD -->
   <canvas id="aim-canvas" style="position:absolute;top:0;left:0;width:360px;height:640px;pointer-events:none;z-index:11;"></canvas>
 
+  <!-- One-Tap corner badge (arena only) -->
+  <div id="one-tap-corner">
+    <span id="one-tap-corner-label">ONE TAP</span>
+    <label id="one-tap-corner-switch">
+      <input type="checkbox" id="one-tap-corner-cb">
+      <span id="one-tap-corner-slider"></span>
+    </label>
+  </div>
+
+  <button id="bgm-btn">🎵</button>
+
   <!-- Header -->
   <div id="header">
-    <button id="btn-back">‹</button>
-    <div id="wallet">
-      <img id="wallet-bg"      src="images/wallet-bg.png" alt="">
-      <img id="wallet-outline" src="images/wallet-outline.png" alt="">
-      <div id="wallet-label">NGN</div>
-      <div id="wallet-amount">10,000.00</div>
+    <div id="header-left">
+      <button id="btn-back">
+        <img src="images/header/arrow_back.svg" width="24" height="24" alt="Back">
+      </button>
+      <div id="wallet">
+        <img src="images/header/Wallet v1.svg" alt="">
+        <div id="wallet-amount">10,000.00</div>
+      </div>
     </div>
-    <div id="logo">Bounce FC</div>
-    <button id="btn-menu">≡</button>
+    <div id="logo">
+      <img src="images/header/Logo.png" alt="Bounce FC">
+    </div>
+    <button id="btn-menu">
+      <img src="images/header/menu.svg" width="24" height="24" alt="Menu">
+    </button>
   </div>
 
   <!-- Event banner -->
@@ -252,7 +530,7 @@ canvas {
   <div id="bottom">
     <!-- Bet-screen slider -->
     <div id="bet-slider-wrap">
-      <div id="bet-slider-amount">Place Your Bet</div>
+      <div id="bet-slider-amount">Choose Your Stake</div>
       <div id="bet-slider-row">
         <span class="bet-range-label">10</span>
         <input type="range" id="bet-slider" min="0" max="100" step="1" value="4">
@@ -265,26 +543,75 @@ canvas {
       <img class="chip" src="images/chip.png" alt="">
       <span id="bet-value">50</span>
     </div>
-    <button id="action-btn">BET</button>
+    <!-- Arena: One-Tap Bet toggle row -->
+    <div id="one-tap-row">
+      <span id="one-tap-label">ONE-TAP BET</span>
+      <label id="one-tap-switch">
+        <input type="checkbox" id="one-tap-cb">
+        <span id="one-tap-slider"></span>
+      </label>
+    </div>
+    <button id="action-btn">START</button>
   </div>
 
   <!-- Breach overlay -->
   <div id="breach">
     <h1>BREACH!</h1>
-    <div class="stat-row">
-      Shots fired: <span id="stat-shots">0</span><br>
-      Kills: <span id="stat-kills">0</span><br>
-      NGN spent: <span id="stat-spent">0</span><br>
-      NGN earned: <span id="stat-earned">0</span><br>
-      Session best: <span id="stat-best">0</span>
+    <div id="breach-you-win">YOU WIN</div>
+    <div id="breach-currency">NGN</div>
+    <div id="breach-amount">0.00</div>
+    <div id="breach-best">BEST: 0.00</div>
+    <div id="breach-stats">Shots: 0 &nbsp;·&nbsp; Kills: 0</div>
+    <div id="breach-btns">
+      <button id="btn-change-bet">CHANGE BET</button>
+      <button id="btn-siege">SIEGE AGAIN</button>
     </div>
-    <button id="btn-siege">⚔ SIEGE AGAIN</button>
+  </div>
+
+  <!-- Menu panel -->
+  <div id="menu-panel">
+    <div id="menu-backdrop"></div>
+    <div id="menu-content">
+      <div id="menu-title">Settings</div>
+      <div class="menu-row">
+        <div class="menu-row-label">
+          <span class="menu-row-icon">🎵</span>
+          <span>Music</span>
+        </div>
+        <label class="menu-sw">
+          <input type="checkbox" id="menu-bgm-cb" checked>
+          <span class="menu-sw-track"></span>
+        </label>
+      </div>
+      <div class="menu-row">
+        <div class="menu-row-label">
+          <span class="menu-row-icon">🔊</span>
+          <span>Sound FX</span>
+        </div>
+        <label class="menu-sw">
+          <input type="checkbox" id="menu-sfx-cb" checked>
+          <span class="menu-sw-track"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bet confirm sheet -->
+  <div id="bet-confirm">
+    <div id="bet-confirm-body">
+      <p id="bet-confirm-msg">Confirm that you want to place bets for NGN <span id="bet-confirm-amount">10.00</span>?</p>
+    </div>
+    <div id="bet-confirm-btns">
+      <button id="btn-confirm-cancel">Cancel</button>
+      <button id="btn-confirm-ok">Confirm</button>
+    </div>
   </div>
 </div>
 
 <script src="js/spine-canvas.js"></script>
 <script src="js/config.js"></script>
 <script src="js/render.js"></script>
+<script src="js/sound.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>

@@ -3,11 +3,15 @@ const IMG = {};
 let assetsLoaded = 0;
 const ASSET_COUNT = Object.keys(URLS).length;
 
-function loadAssets(cb) {
+function loadAssets(cb, onProgress) {
   Object.entries(URLS).forEach(([k, url]) => {
     const img = new Image();
     if (url.startsWith('http')) img.crossOrigin = 'anonymous';
-    img.onload = img.onerror = () => { if (++assetsLoaded >= ASSET_COUNT) cb(); };
+    img.onload = img.onerror = () => {
+      assetsLoaded++;
+      if (onProgress) onProgress(assetsLoaded, ASSET_COUNT);
+      if (assetsLoaded >= ASSET_COUNT) cb();
+    };
     img.src = url;
     IMG[k] = img;
   });
@@ -176,7 +180,6 @@ function loadEnemySpines(cb) {
 }
 
 function createEnemySpine(spriteName) {
-  if (spriteName === 'ghoul') return null; // spine/enemy/ghoul.png is wrong texture — use static PNG
   const skelData = ENEMY_SKEL_DATA[spriteName];
   if (!skelData) return null;
   const skeleton = new spine.Skeleton(skelData);
@@ -328,10 +331,72 @@ function drawHPBadge(e, x, y) {
   ctx.restore();
 }
 
+function drawGrid() {
+  const visibleRows = Math.ceil((DIVIDER_Y - ENEMY_START_Y) / CELL_H); // rows visible above breach line
+  ctx.save();
+  const advOff = state.advancing ? (state.advanceOffset || 0) : 0;
+
+  for (let r = 0; r < visibleRows; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const x = GRID_LEFT + c * CELL_W;
+      const y = ENEMY_START_Y + r * CELL_H + advOff;
+
+      // Alternating cell fill — checkerboard
+      const even = (r + c) % 2 === 0;
+      ctx.fillStyle = even ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.06)';
+      ctx.fillRect(x, y, CELL_W, CELL_H);
+
+      // Cell border
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(x + 0.25, y + 0.25, CELL_W - 0.5, CELL_H - 0.5);
+    }
+  }
+  ctx.restore();
+}
+
+function drawCoins() {
+  if (!state.coins || !state.coins.length) return;
+  const img  = IMG.coin;
+  const SIZE = 14;
+  state.coins.forEach(coin => {
+    ctx.save();
+    if (img && img.naturalWidth > 0) {
+      ctx.drawImage(img, coin.x - SIZE / 2, coin.y - SIZE / 2, SIZE, SIZE);
+    } else {
+      ctx.fillStyle   = '#ffd700';
+      ctx.strokeStyle = '#b8860b';
+      ctx.lineWidth   = 1.5;
+      ctx.beginPath();
+      ctx.arc(coin.x, coin.y, SIZE / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+  });
+}
+
+function drawDeathline() {
+  const img = IMG.deathline;
+  if (!img || !img.naturalWidth) return;
+  const lineW = FR - FL;
+  const lineH = Math.round(img.naturalHeight * lineW / img.naturalWidth);
+  const lineY = DIVIDER_Y - Math.round(lineH / 2);
+  ctx.save();
+  if (state.breaching) {
+    // Rotate yellow hue to red
+    ctx.filter = 'hue-rotate(300deg) saturate(1.5)';
+  }
+  ctx.drawImage(img, FL, lineY, lineW, lineH);
+  ctx.restore();
+}
+
 function drawEnemies() {
   const now = performance.now() / 1000;
   state.enemies.forEach(e => {
     const { x, y } = enemyXY(e.col, e.row, e._diagDir || 0);
+    const sx = x + (CELL_W - ENEMY_W) / 2;
+    const sy = y + (CELL_H - ENEMY_H) / 2;
     const t = ENEMY_TYPES[e.typeIdx];
     if (e.spine && enemyRenderer) {
       const { skeleton, animState } = e.spine;
@@ -339,25 +404,34 @@ function drawEnemies() {
       e.spine.lastTime = now;
       animState.update(delta);
       animState.apply(skeleton);
-      skeleton.x = x + ENEMY_W / 2;
+      skeleton.x = x + CELL_W / 2;
       skeleton.y = y + ENEMY_SPINE_Y_OFF;
       skeleton.updateWorldTransform();
       ctx.save();
       enemyRenderer.draw(skeleton);
       ctx.restore();
     } else {
-      safeDrawImage(IMG[t.sprite], x, y, ENEMY_W, ENEMY_H);
+      safeDrawImage(IMG[t.sprite], sx, sy, ENEMY_W, ENEMY_H);
     }
     if (e.hitFlash > 0) {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = (e.hitFlash / 5) * 0.6;
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(x - 4, y - 4, ENEMY_W + 8, ENEMY_H + 8);
+      ctx.fillRect(sx - 4, sy - 4, ENEMY_W + 8, ENEMY_H + 8);
       ctx.restore();
       e.hitFlash--;
     }
-    if (!e.dying) drawHPBadge(e, x, y);
+    // Enemy cell highlight box
+    if (!e.dying) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, CELL_W - 1, CELL_H - 1);
+      ctx.restore();
+    }
+
+    if (!e.dying) drawHPBadge(e, sx, sy);
   });
 }
 
@@ -368,6 +442,7 @@ function drawPlayer() {
 let _aimDashOffset = 0;
 
 function drawAimLine() {
+  // drawn on main ctx (before knight) so the knight renders on top
   aimCtx.clearRect(0, 0, CW, CH);
   if (!state.isAiming || state.ballActive) return;
   const kx = knight ? knight.x : PLAYER_X;
@@ -390,7 +465,7 @@ function drawAimLine() {
   }
   const bp = pts[bounceIdx];
 
-  const ac = aimCtx;
+  const ac = ctx;
   ac.save();
 
   // Dashed line: knight → first bounce
@@ -486,6 +561,7 @@ function drawHitFlash() {
 }
 
 
+
 function drawPopups() {
   state.popups.forEach(p => {
     const alpha = 1 - p.age / p.maxAge;
@@ -548,8 +624,11 @@ function render() {
     ctx.translate(sx, sy);
     try {
       drawTrailPuffs();
+      // drawGrid();  // hidden — re-enable for debug
+      drawDeathline();
       drawEnemies();
       drawEffects(true);   // smoke death — on top of enemies
+      drawCoins();
       if (state.screen === 'arena') {
         drawBall();
         drawHitFlash();
