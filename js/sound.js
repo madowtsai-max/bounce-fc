@@ -1,13 +1,16 @@
 // ── SOUND ENGINE (Web Audio API — no files needed) ────────
-// All sounds are synthesised. Replace any function body with
-// a buffered-source load if you want a real audio file.
-
 const SFX = (() => {
   let ctx = null;
+  let idleTimer = null;
 
   function getCtx() {
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
     if (ctx.state === 'suspended') ctx.resume();
+    // Close context after 3s of silence so the OS audio session is released
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      if (ctx) { ctx.close(); ctx = null; }
+    }, 3000);
     return ctx;
   }
 
@@ -74,7 +77,6 @@ const SFX = (() => {
       localStorage.setItem('bounceFcMuteSfx', sfxMuted ? '1' : '0');
     },
 
-    // Ball kicked — dull thud + short high whoosh
     shoot() {
       if (sfxMuted) return;
       playNoise({ gain: 0.5, attack: 0.005, release: 0.06, filter: 220 });
@@ -82,7 +84,6 @@ const SFX = (() => {
                  attack: 0.01, decay: 0.08, sustain: 0, release: 0.05, duration: 0.1 });
     },
 
-    // Ball hits enemy — crisp mid impact
     hit() {
       if (sfxMuted) return;
       playNoise({ gain: 0.35, attack: 0.003, release: 0.05, filter: 600 });
@@ -90,7 +91,6 @@ const SFX = (() => {
                  attack: 0.005, decay: 0.06, sustain: 0, release: 0.04, duration: 0.08 });
     },
 
-    // Enemy killed — satisfying rising pop
     kill() {
       if (sfxMuted) return;
       playTone({ freq: 200, freqEnd: 600, type: 'sine', gain: 0.35,
@@ -98,7 +98,6 @@ const SFX = (() => {
       playNoise({ gain: 0.2, attack: 0.005, release: 0.1, filter: 1200 });
     },
 
-    // Enemies advance — low rumble
     advance() {
       if (sfxMuted) return;
       playNoise({ gain: 0.25, attack: 0.02, release: 0.18, filter: 120 });
@@ -111,8 +110,9 @@ const SFX = (() => {
 // ── BACKGROUND MUSIC ──────────────────────────────────────
 const BGM = (() => {
   const audio = new Audio('audio/bg_music.m4a');
-  audio.loop   = true;
-  audio.volume = 0.175;
+  audio.loop        = true;
+  audio.volume      = 0.09;
+  audio.playsInline = true; // iOS: don't hijack audio session
 
   let muted = (localStorage.getItem('bounceFcMute') === '1');
   audio.muted = muted;
