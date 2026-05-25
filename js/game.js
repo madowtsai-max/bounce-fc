@@ -698,18 +698,25 @@ const onLoadingTap = () => { BGM.play(); document.removeEventListener('pointerdo
 document.addEventListener('pointerdown', onLoadingTap);
 
 loadAssets(() => {
-  loadKnight(() => {});
-  loadEnemySpines(() => {});
-  loadFX(() => {});
-  resetState();
-  showBetUI();
-  updateWallet();
-  updateBetDisplay();
-  const oneTapOn = isOneTapOn();
-  document.getElementById('one-tap-cb').checked = oneTapOn;
-  document.getElementById('one-tap-corner-cb').checked = oneTapOn;
-  BGM.init();
-  document.getElementById('bgm-btn').addEventListener('click', () => BGM.toggleMute());
-  loop(0);
-  realLoadDone = true; // lets bar reach 100% and show TAP TO START
+  try {
+    loadKnight(() => {});
+    loadEnemySpines(() => {});
+    loadFX(() => {});
+    resetState();
+    showBetUI();
+    updateWallet();
+    updateBetDisplay();
+    const oneTapOn = isOneTapOn();
+    document.getElementById('one-tap-cb').checked = oneTapOn;
+    document.getElementById('one-tap-corner-cb').checked = oneTapOn;
+    BGM.init();
+    document.getElementById('bgm-btn').addEventListener('click', () => BGM.toggleMute());
+    loop(0);
+  } catch (e) {
+    console.error('Boot error:', e);
+  }
+  realLoadDone = true;
 });
+
+// Safety: dismiss loading screen after 8s even if something fails
+setTimeout(() => { realLoadDone = true; }, 8000);
