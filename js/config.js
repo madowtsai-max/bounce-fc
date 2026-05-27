@@ -1,6 +1,7 @@
 // ── ASSETS ───────────────────────────────────────────────
 const URLS = {
   bgField:   'images/bg.png',
+  gate:      'images/gate.png',
   deathline: 'images/deathline.png',
   coin:      'images/coin.png',
   player:    'images/player.png',

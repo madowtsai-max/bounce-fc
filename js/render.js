@@ -376,6 +376,25 @@ function drawCoins() {
   });
 }
 
+function drawGate() {
+  const g = state.gate;
+  if (!g) return;
+  const img = IMG.gate;
+  if (!img || !img.naturalWidth) return;
+  const drawW = FR - FL;
+  const drawH = g.drawH;
+  ctx.drawImage(img, FL, g.y, drawW, drawH);
+}
+
+function drawDangerZone() {
+  if (!state.cancelMode) return;
+  ctx.save();
+  ctx.globalAlpha = 0.3;
+  ctx.fillStyle = '#FF0000';
+  ctx.fillRect(FL, DIVIDER_Y, FR - FL, CH - DIVIDER_Y);
+  ctx.restore();
+}
+
 function drawDeathline() {
   const img = IMG.deathline;
   if (!img || !img.naturalWidth) return;
@@ -422,14 +441,6 @@ function drawEnemies() {
       ctx.restore();
       e.hitFlash--;
     }
-    // Enemy cell highlight box
-    if (!e.dying) {
-      ctx.save();
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x + 0.5, y + 0.5, CELL_W - 1, CELL_H - 1);
-      ctx.restore();
-    }
 
     if (!e.dying) drawHPBadge(e, sx, sy);
   });
@@ -442,9 +453,40 @@ function drawPlayer() {
 let _aimDashOffset = 0;
 
 function drawAimLine() {
-  // drawn on main ctx (before knight) so the knight renders on top
   aimCtx.clearRect(0, 0, CW, CH);
   if (!state.isAiming || state.ballActive) return;
+
+  // Cancel mode — draw indicator pill at deathline, hide aim line
+  if (state.cancelMode) {
+    const cx = CW / 2, cy = DIVIDER_Y - 18;
+    ctx.font = 'bold 13px Roboto, sans-serif';
+    const tw = ctx.measureText('RELEASE TO CANCEL').width;
+    const pw = tw + 32, ph = 28, r = 14;
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = '#000000';
+    ctx.beginPath();
+    const x0 = cx - pw / 2, y0 = cy - ph / 2;
+    ctx.moveTo(x0 + r, y0);
+    ctx.lineTo(x0 + pw - r, y0);
+    ctx.arcTo(x0 + pw, y0, x0 + pw, y0 + r, r);
+    ctx.lineTo(x0 + pw, y0 + ph - r);
+    ctx.arcTo(x0 + pw, y0 + ph, x0 + pw - r, y0 + ph, r);
+    ctx.lineTo(x0 + r, y0 + ph);
+    ctx.arcTo(x0, y0 + ph, x0, y0 + ph - r, r);
+    ctx.lineTo(x0, y0 + r);
+    ctx.arcTo(x0, y0, x0 + r, y0, r);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 13px Roboto, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('RELEASE TO CANCEL', cx, cy);
+    ctx.restore();
+    return;
+  }
   const kx = knight ? knight.x : PLAYER_X;
   const pts = calcTrajectory(kx, PLAYER_Y, state.aimX, state.aimY);
   if (pts.length < 2) return;
@@ -625,6 +667,7 @@ function render() {
     try {
       drawTrailPuffs();
       // drawGrid();  // hidden — re-enable for debug
+      drawDangerZone();
       drawDeathline();
       drawEnemies();
       drawEffects(true);   // smoke death — on top of enemies
@@ -636,6 +679,7 @@ function render() {
       drawEffects(false);  // hit sparks — on top
       drawAimLine();
       drawPlayer();
+      drawGate();
       drawCombo();
       drawPopups();
     } finally {

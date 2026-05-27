@@ -36,6 +36,8 @@ function resetState() {
     breaching:     false,
     coins:         [],
     _walletTarget: null,
+    cancelMode:    false,
+    gate:          null,   // { y, drawH, speed } — portcullis rise animation
   };
 }
 
@@ -442,6 +444,9 @@ function updateBetDisplay() {
   document.getElementById('bet-value').textContent = formatBet(state.bet);
 }
 function showBetUI() {
+  const bot = document.getElementById('bottom');
+  bot.style.paddingTop  = '80px';
+  bot.style.background  = 'linear-gradient(to top,rgba(0,0,0,.55) 0%,rgba(0,0,0,0) 100%)';
   document.getElementById('bet-slider-wrap').style.display = 'block';
   document.getElementById('bet-display').style.display = 'flex';
   document.getElementById('bet-display').style.marginBottom = '28px';
@@ -461,6 +466,9 @@ function hideArenaUI() {
 }
 function showArenaUI() {
   hideArenaUI();
+  const bot = document.getElementById('bottom');
+  bot.style.paddingTop = '';
+  bot.style.background = '';
   document.getElementById('bet-display').style.display = 'none';
   document.getElementById('one-tap-corner').style.display = 'flex';
   document.getElementById('action-btn').style.display = 'none';
@@ -516,7 +524,7 @@ function goToBet() {
   document.getElementById('bet-confirm').classList.remove('visible');
   document.getElementById('bet-confirm').style.display = 'none';
 }
-function goToArena() {
+function goToArena(withGate = false) {
   state.screen = 'arena';
   initArena();
   showArenaUI();
@@ -527,6 +535,14 @@ function goToArena() {
     knight.skeleton.x = PLAYER_X;
     knightPlay('enter', false);
     knight.animState.addAnimation(0, 'idle', true, 0);
+  }
+  if (withGate) {
+    const img = IMG.gate;
+    const drawW = FR - FL;
+    const drawH = img && img.naturalWidth
+      ? Math.round(drawW * img.naturalHeight / img.naturalWidth)
+      : 400;
+    state.gate = { y: FT - 10, drawH, speed: 13 };
   }
 }
 function siegeAgain() {
@@ -548,7 +564,7 @@ function getCanvasPos(e) {
 }
 
 canvas.addEventListener('pointerdown', e => {
-  if (state.screen !== 'arena' || state.ballActive || state.advancing || state.breaching) return;
+  if (state.screen !== 'arena' || state.gate || state.ballActive || state.advancing || state.breaching) return;
   e.preventDefault();
   const p = getCanvasPos(e);
   state.isAiming = true;
@@ -560,12 +576,20 @@ canvas.addEventListener('pointerdown', e => {
 canvas.addEventListener('pointermove', e => {
   if (!state.isAiming || state.screen !== 'arena' || state.ballActive || state.breaching) return;
   const p = getCanvasPos(e);
+  state.cancelMode = p.y > DIVIDER_Y;
   state.aimX = p.x;
   state.aimY = Math.min(p.y, PLAYER_Y - PLAYER_H - 10);
 });
 
 canvas.addEventListener('pointerup', () => {
   if (state.screen !== 'arena' || state.ballActive || state.advancing || state.breaching || !state.isAiming) return;
+  if (state.cancelMode) {
+    state.isAiming  = false;
+    state.cancelMode = false;
+    knightPlay('idle', true);
+    setBanner('Aim & Shoot!');
+    return;
+  }
   state.isAiming = false;
   if (isOneTapOn()) {
     shoot();
@@ -574,7 +598,10 @@ canvas.addEventListener('pointerup', () => {
   }
 });
 
-canvas.addEventListener('pointercancel', () => { state.isAiming = false; });
+canvas.addEventListener('pointercancel', () => {
+  state.isAiming   = false;
+  state.cancelMode = false;
+});
 
 document.getElementById('action-btn').addEventListener('click', function() {
   if (state.screen !== 'bet') return;
@@ -582,7 +609,8 @@ document.getElementById('action-btn').addEventListener('click', function() {
   const btn = this;
   btn.disabled = true;
   document.getElementById('bg-mask').style.opacity = '0';
-  setTimeout(() => { btn.disabled = false; goToArena(); }, 500);
+  btn.disabled = false;
+  goToArena(true);
 });
 
 document.getElementById('btn-confirm-cancel').addEventListener('click', hideBetConfirm);
@@ -654,6 +682,10 @@ function loop(ts) {
   if (ts - lastTime < 16) return;
   lastTime = ts;
   try {
+    if (state.gate) {
+      state.gate.y -= state.gate.speed;
+      if (state.gate.y + state.gate.drawH < 0) state.gate = null;
+    }
     if (state.screen === 'arena') {
       if (state.advancing) tickAdvance();
       else stepBall();
