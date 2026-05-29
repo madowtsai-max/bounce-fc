@@ -86,6 +86,7 @@ canvas {
   text-align:center;
   line-height:27px;
   white-space:nowrap;
+  overflow:hidden;
   z-index:20;
 }
 /* ── BOTTOM UI ── */
@@ -273,6 +274,7 @@ canvas {
   z-index:9;
   pointer-events:none;
   transition:opacity .5s ease;
+  opacity:0;
 }
 /* ── ONE-TAP CORNER BADGE ── */
 #one-tap-corner {
@@ -327,14 +329,27 @@ canvas {
 #bet-confirm {
   display:none;
   position:absolute;
-  bottom:0; left:0;
-  width:360px;
-  flex-direction:column;
+  inset:0;
   z-index:25;
+  flex-direction:column;
+  justify-content:flex-end;
+}
+#bet-confirm.visible {
+  display:flex;
+}
+#bet-confirm-mask {
+  position:absolute;
+  inset:0;
+  background:rgba(0,0,0,0.5);
+}
+#bet-confirm-sheet {
+  position:relative;
+  z-index:1;
+  width:100%;
   transform:translateY(100%);
   transition:transform .22s cubic-bezier(.32,.72,0,1);
 }
-#bet-confirm.visible { transform:translateY(0); }
+#bet-confirm.visible #bet-confirm-sheet { transform:translateY(0); }
 #bet-confirm-body {
   background:#fff;
   min-height:82px;
@@ -420,6 +435,20 @@ canvas {
   transform:translateX(100%);
   transition:transform .25s cubic-bezier(.32,.72,0,1);
 }
+#menu-close {
+  position:absolute;
+  top:16px; right:16px;
+  width:32px; height:32px;
+  background:none;
+  border:none;
+  cursor:pointer;
+  padding:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  opacity:0.6;
+}
+#menu-close:active { opacity:1; }
 #menu-panel.open #menu-content { transform:translateX(0); }
 #menu-title {
   color:rgba(255,255,255,.4);
@@ -466,6 +495,50 @@ canvas {
 }
 .wallet-flash { animation: walletPulse .4s ease-out forwards; }
 /* popups rendered on canvas — no DOM class needed */
+/* ── ONE-TAP PROMPT ── */
+#one-tap-prompt {
+  position:absolute;
+  inset:0;
+  display:none;
+  z-index:40;
+}
+#one-tap-prompt.visible {
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-end;
+}
+#one-tap-mask {
+  position:absolute;
+  inset:0;
+  background:rgba(0,0,0,0.5);
+}
+#one-tap-sheet {
+  position:relative;
+  background:#fff;
+  padding:32px 24px 0;
+  z-index:1;
+}
+#one-tap-prompt p {
+  font-size:18px; font-weight:700;
+  text-align:center; color:#111;
+  line-height:1.4; margin-bottom:32px;
+}
+#one-tap-prompt-btns {
+  display:flex;
+  margin:0 -24px;
+}
+#otp-no  {
+  flex:0 0 120px; height:60px;
+  font-size:18px; font-weight:700;
+  border:none; cursor:pointer; color:#fff;
+  background:#1a1a1a;
+}
+#otp-yes {
+  flex:1; height:60px;
+  font-size:18px; font-weight:700;
+  border:none; cursor:pointer; color:#fff;
+  background:#28a745;
+}
 </style>
 </head>
 <body>
@@ -570,6 +643,7 @@ canvas {
   <div id="menu-panel">
     <div id="menu-backdrop"></div>
     <div id="menu-content">
+      <button id="menu-close"><img src="images/close.svg" width="19" height="19" alt="Close"></button>
       <div id="menu-title">Settings</div>
       <div class="menu-row">
         <div class="menu-row-label">
@@ -591,17 +665,42 @@ canvas {
           <span class="menu-sw-track"></span>
         </label>
       </div>
+      <div class="menu-row">
+        <div class="menu-row-label">
+          <span class="menu-row-icon">👆</span>
+          <span>One-Tap Bet</span>
+        </div>
+        <label class="menu-sw">
+          <input type="checkbox" id="menu-onetap-cb">
+          <span class="menu-sw-track"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- One-Tap first-run prompt -->
+  <div id="one-tap-prompt">
+    <div id="one-tap-mask"></div>
+    <div id="one-tap-sheet">
+      <p>Do you want to turn on One-Tap Bet for a better playing experience?</p>
+      <div id="one-tap-prompt-btns">
+        <button id="otp-no">No</button>
+        <button id="otp-yes">Yes</button>
+      </div>
     </div>
   </div>
 
   <!-- Bet confirm sheet -->
   <div id="bet-confirm">
-    <div id="bet-confirm-body">
-      <p id="bet-confirm-msg">Confirm that you want to place bets for NGN <span id="bet-confirm-amount">10.00</span>?</p>
-    </div>
-    <div id="bet-confirm-btns">
-      <button id="btn-confirm-cancel">Cancel</button>
-      <button id="btn-confirm-ok">Confirm</button>
+    <div id="bet-confirm-mask"></div>
+    <div id="bet-confirm-sheet">
+      <div id="bet-confirm-body">
+        <p id="bet-confirm-msg">Confirm that you want to place bets for NGN <span id="bet-confirm-amount">10.00</span>?</p>
+      </div>
+      <div id="bet-confirm-btns">
+        <button id="btn-confirm-cancel">Cancel</button>
+        <button id="btn-confirm-ok">Confirm</button>
+      </div>
     </div>
   </div>
 </div>

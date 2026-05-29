@@ -64,7 +64,7 @@ function loadKnight(cb) {
   imgEl.src = base + 'knight.png';
 }
 
-function knightPlay(anim, loop = false, trackMix = 0.15) {
+function knightPlay(anim, loop = false) {
   if (!knight) return;
   const cur = knight.animState.getCurrent(0);
   if (cur && cur.animation && cur.animation.name === anim) return;
@@ -142,8 +142,152 @@ function ballSpinePlay(anim, loop) {
   ballSkel.animState.setAnimation(0, anim, loop);
 }
 
+// ── SPINE FLAG ────────────────────────────────────────────
+// Note: new export was Spine 4.2.43 — keeping old 3.8.99 files
+let flagL = null;
+let flagR = null;
+
+function _makeFlagInstance(skelData, x) {
+  const skeleton = new spine.Skeleton(skelData);
+  skeleton.scaleX =  1 / 3;
+  skeleton.scaleY = -1 / 3;
+  skeleton.x = x;
+  skeleton.y = 165;
+
+  const stateData = new spine.AnimationStateData(skelData);
+  const animState = new spine.AnimationState(stateData);
+  animState.setAnimation(0, 'idle', true);  // loop idle only
+
+  const renderer = new spine.canvas.SkeletonRenderer(aimCtx);
+  renderer.debugRendering = false;
+
+  return { skeleton, animState, renderer, lastTime: performance.now() / 1000 };
+}
+
+function loadFlag(cb) {
+  const base = 'spine/';
+  const imgEl = new Image();
+  imgEl.onerror = () => cb();
+  imgEl.onload = () => {
+    Promise.all([
+      fetch(base + 'flag.atlas').then(r => r.text()),
+      fetch(base + 'flag.json').then(r => r.json()),
+    ]).then(([atlasText, jsonData]) => {
+      const textureAtlas = new spine.TextureAtlas(atlasText, () =>
+        new spine.canvas.CanvasTexture(imgEl)
+      );
+      const atlasLoader = new spine.AtlasAttachmentLoader(textureAtlas);
+      const skelData = new spine.SkeletonJson(atlasLoader).readSkeletonData(jsonData);
+      flagL = _makeFlagInstance(skelData, 19);
+      flagR = _makeFlagInstance(skelData, 341);
+      cb();
+    }).catch(() => cb());
+  };
+  imgEl.src = base + 'flag.png';
+}
+
+function updateFlag(nowSec) {
+  [flagL, flagR].forEach(f => {
+    if (!f) return;
+    const delta = nowSec - f.lastTime;
+    f.lastTime = nowSec;
+    f.animState.update(delta);
+    f.animState.apply(f.skeleton);
+    f.skeleton.updateWorldTransform();
+  });
+}
+
+function drawFlag() {
+  [flagL, flagR].forEach(f => {
+    if (!f) return;
+    aimCtx.save();
+    f.renderer.draw(f.skeleton);
+    aimCtx.restore();
+  });
+}
+
+// ── SPINE FIRE (torches) ──────────────────────────────────
+// Single-torch skeleton — two instances for left and right corners
+let fireL = null;
+let fireR = null;
+
+function _makeFireInstance(skelData, x, y) {
+  const skeleton = new spine.Skeleton(skelData);
+  skeleton.scaleX =  1 / 3;
+  skeleton.scaleY = -1 / 3;
+  skeleton.x = x;
+  skeleton.y = y;
+
+  const stateData = new spine.AnimationStateData(skelData);
+  const animState = new spine.AnimationState(stateData);
+  animState.setAnimation(0, 'animation', true);
+
+  // Use ctx so additive blending works against the background (below castle-frame overlay)
+  const renderer = new spine.canvas.SkeletonRenderer(ctx);
+  renderer.debugRendering = false;
+
+  return { skeleton, animState, renderer, lastTime: performance.now() / 1000 };
+}
+
+function loadFire(cb) {
+  const base = 'spine/';
+  const imgEl = new Image();
+  imgEl.onerror = () => cb();
+  imgEl.onload = () => {
+    Promise.all([
+      fetch(base + 'fire.atlas').then(r => r.text()),
+      fetch(base + 'fire.json').then(r => r.json()),
+    ]).then(([atlasText, jsonData]) => {
+      const textureAtlas = new spine.TextureAtlas(atlasText, () =>
+        new spine.canvas.CanvasTexture(imgEl)
+      );
+      const atlasLoader = new spine.AtlasAttachmentLoader(textureAtlas);
+      const skelData = new spine.SkeletonJson(atlasLoader).readSkeletonData(jsonData);
+
+      fireL = _makeFireInstance(skelData,  15, 30);   // left torch
+      fireR = _makeFireInstance(skelData, 345, 30);   // right torch
+      cb();
+    }).catch(() => cb());
+  };
+  imgEl.src = base + 'fire.png';
+}
+
+function updateFire(nowSec) {
+  [fireL, fireR].forEach(f => {
+    if (!f) return;
+    const delta = nowSec - f.lastTime;
+    f.lastTime = nowSec;
+    f.animState.update(delta);
+    f.animState.apply(f.skeleton);
+    f.skeleton.updateWorldTransform();
+  });
+}
+
+function drawFire() {
+  [fireL, fireR].forEach(f => {
+    if (!f) return;
+    ctx.save();
+    f.renderer.draw(f.skeleton);
+    ctx.restore();
+  });
+}
+
+function drawKnightCircle() {
+  if (state.screen === 'bet') return;
+  const img = IMG.circle;
+  if (!img || !img.naturalWidth) return;
+  const canShoot = state.screen === 'arena' && !state.ballActive && !state.advancing && !state.breaching;
+  const alpha = canShoot ? 1 : 0.35;
+  const W = 68, H = 26;
+  const cx = knight ? knight.x : PLAYER_X;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(img, cx - W / 2, PLAYER_Y - H / 2 + 35, W, H);
+  ctx.restore();
+}
 
 function drawKnight() {
+  if (state.screen === 'bet') return;
   if (!knight) {
     safeDrawImage(IMG.player, PLAYER_X - PLAYER_W / 2, PLAYER_Y - PLAYER_H + 10, PLAYER_W, PLAYER_H);
     return;
@@ -230,44 +374,42 @@ function spawnEffect(type, x, y, size, delay, alpha) {
 }
 
 function drawTrailPuffs() {
-  if (!state.trailPuffs || !state.trailPuffs.length) return;
+  if (!state.trailPuffs.length) return;
   const img = IMG.smoke;
+  const hasImg = img && img.naturalWidth > 0;
   const MAX_AGE = 30;
+  ctx.save();
   state.trailPuffs.forEach(p => {
     const t = p.age / MAX_AGE;
-    const size = 20 + t * 30;  // 20px → 50px
-    const alpha = (1 - t) * 0.9;
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    if (img && img.naturalWidth > 0) {
+    const size = 20 + t * 30;
+    ctx.globalAlpha = (1 - t) * 0.9;
+    if (hasImg) {
       ctx.drawImage(img, p.x - size / 2, p.y - size / 2, size, size);
     } else {
-      // fallback: white circle so we can confirm positioning
       ctx.fillStyle = '#fff';
       ctx.beginPath();
       ctx.arc(p.x, p.y, size / 2, 0, Math.PI * 2);
       ctx.fill();
     }
-    ctx.restore();
     p.age++;
   });
+  ctx.restore();
   state.trailPuffs = state.trailPuffs.filter(p => p.age < MAX_AGE);
 }
 
 function drawEffects(below) {
-  if (!state.effects || !state.effects.length) return;
+  if (!state.effects.length) return;
+  ctx.save();
   state.effects.forEach(fx => {
-    if (!!fx.below !== !!below) return;
-    if (fx.frameIdx >= fx.frames.length) return;
+    if (!!fx.below !== !!below || fx.frameIdx >= fx.frames.length) return;
     const img = fx.frames[fx.frameIdx];
     if (img && img.naturalWidth > 0) {
-      ctx.save();
       ctx.globalAlpha = fx.alpha;
       ctx.drawImage(img, fx.x - fx.size / 2, fx.y - fx.size / 2, fx.size, fx.size);
-      ctx.restore();
     }
     if (++fx.timer >= fx.delay) { fx.timer = 0; fx.frameIdx++; }
   });
+  ctx.restore();
   if (!below) state.effects = state.effects.filter(fx => fx.frameIdx < fx.frames.length);
 }
 
@@ -303,88 +445,107 @@ function drawBackground() {
   safeDrawImage(IMG.bgField, 0, 0, CW, CH);
 }
 
-function drawHPBadge(e, x, y) {
-  const hpText = `${e.hp}/${e.maxHp}`;
-  ctx.save();
-  ctx.font = 'bold 9px Roboto';
-  ctx.textAlign = 'center';
-  const tw = ctx.measureText(hpText).width;
-  const pillW = tw + 8, pillH = 11;
-  const pillX = x + ENEMY_W / 2 - pillW / 2;
-  const pillY = y + ENEMY_H - pillH - 1;
-  const r = pillH / 2;
-  ctx.fillStyle = 'rgba(0,0,0,0.72)';
-  ctx.beginPath();
-  ctx.moveTo(pillX + r, pillY);
-  ctx.lineTo(pillX + pillW - r, pillY);
-  ctx.arc(pillX + pillW - r, pillY + r, r, -Math.PI / 2, 0);
-  ctx.lineTo(pillX + pillW, pillY + pillH - r);
-  ctx.arc(pillX + pillW - r, pillY + pillH - r, r, 0, Math.PI / 2);
-  ctx.lineTo(pillX + r, pillY + pillH);
-  ctx.arc(pillX + r, pillY + pillH - r, r, Math.PI / 2, Math.PI);
-  ctx.lineTo(pillX, pillY + r);
-  ctx.arc(pillX + r, pillY + r, r, Math.PI, -Math.PI / 2);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = '#fff';
-  ctx.fillText(hpText, x + ENEMY_W / 2, pillY + pillH - 2);
-  ctx.restore();
-}
-
-function drawGrid() {
-  const visibleRows = Math.ceil((DIVIDER_Y - ENEMY_START_Y) / CELL_H); // rows visible above breach line
-  ctx.save();
-  const advOff = state.advancing ? (state.advanceOffset || 0) : 0;
-
-  for (let r = 0; r < visibleRows; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const x = GRID_LEFT + c * CELL_W;
-      const y = ENEMY_START_Y + r * CELL_H + advOff;
-
-      // Alternating cell fill — checkerboard
-      const even = (r + c) % 2 === 0;
-      ctx.fillStyle = even ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.06)';
-      ctx.fillRect(x, y, CELL_W, CELL_H);
-
-      // Cell border
-      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-      ctx.lineWidth = 0.5;
-      ctx.strokeRect(x + 0.25, y + 0.25, CELL_W - 0.5, CELL_H - 0.5);
-    }
+function drawBetMask() {
+  // 50% black overlay covers everything including deathline; fades out over 0.6s on arena start
+  let alpha = 0;
+  if (state.screen === 'bet') {
+    alpha = 0.5;
+  } else if (state.arenaEnteredAt) {
+    const elapsed = performance.now() - state.arenaEnteredAt;
+    alpha = Math.max(0, 0.5 * (1 - elapsed / 600));
   }
+  if (alpha <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, CW, CH);
   ctx.restore();
 }
+
+function drawHPBadge(e, x, y) {
+  const pct    = e.hp / e.maxHp;
+  const hpText = `${e.hp}/${e.maxHp}`;
+  const pillW  = ENEMY_W;
+  const pillH  = 9;
+  const r      = pillH / 2;
+  const px     = x;
+  const py     = y + ENEMY_H - pillH + 5;
+
+  function pillPath() {
+    ctx.beginPath();
+    ctx.moveTo(px + r, py);
+    ctx.lineTo(px + pillW - r, py);
+    ctx.arc(px + pillW - r, py + r, r, -Math.PI / 2, 0);
+    ctx.lineTo(px + pillW, py + pillH - r);
+    ctx.arc(px + pillW - r, py + pillH - r, r, 0, Math.PI / 2);
+    ctx.lineTo(px + r, py + pillH);
+    ctx.arc(px + r, py + pillH - r, r, Math.PI / 2, Math.PI);
+    ctx.lineTo(px, py + r);
+    ctx.arc(px + r, py + r, r, Math.PI, -Math.PI / 2);
+    ctx.closePath();
+  }
+
+  ctx.save();
+
+  // Dark empty-HP background
+  ctx.fillStyle = '#4a0000';
+  pillPath();
+  ctx.fill();
+
+  // Red current-HP fill, clipped to pill shape
+  if (pct > 0) {
+    ctx.save();
+    pillPath();
+    ctx.clip();
+    ctx.fillStyle = '#d32f2f';
+    ctx.fillRect(px, py, pillW * pct, pillH);
+    ctx.restore();
+  }
+
+  // 2px black pill outline
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#000';
+  pillPath();
+  ctx.stroke();
+
+  // Bold italic text — large enough to overflow pill, black stroke
+  ctx.font = 'italic bold 13px Roboto, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#000';
+  ctx.strokeText(hpText, px + pillW / 2, py + pillH / 2);
+  ctx.fillStyle = '#fff';
+  ctx.fillText(hpText, px + pillW / 2, py + pillH / 2);
+
+  ctx.restore();
+}
+
 
 function drawCoins() {
-  if (!state.coins || !state.coins.length) return;
+  if (!state.coins.length) return;
   const img  = IMG.coin;
-  const SIZE = 14;
+  const SIZE = 18;
+  const hasImg = img && img.naturalWidth > 0;
+  // Draw on aimCtx so coins fly above the castle-frame overlay
+  if (!hasImg) {
+    aimCtx.fillStyle   = '#ffd700';
+    aimCtx.strokeStyle = '#b8860b';
+    aimCtx.lineWidth   = 1.5;
+  }
   state.coins.forEach(coin => {
-    ctx.save();
-    if (img && img.naturalWidth > 0) {
-      ctx.drawImage(img, coin.x - SIZE / 2, coin.y - SIZE / 2, SIZE, SIZE);
+    if (hasImg) {
+      aimCtx.drawImage(img, coin.x - SIZE / 2, coin.y - SIZE / 2, SIZE, SIZE);
     } else {
-      ctx.fillStyle   = '#ffd700';
-      ctx.strokeStyle = '#b8860b';
-      ctx.lineWidth   = 1.5;
-      ctx.beginPath();
-      ctx.arc(coin.x, coin.y, SIZE / 2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      aimCtx.beginPath();
+      aimCtx.arc(coin.x, coin.y, SIZE / 2, 0, Math.PI * 2);
+      aimCtx.fill();
+      aimCtx.stroke();
     }
-    ctx.restore();
   });
 }
 
-function drawGate() {
-  const g = state.gate;
-  if (!g) return;
-  const img = IMG.gate;
-  if (!img || !img.naturalWidth) return;
-  const drawW = FR - FL;
-  const drawH = g.drawH;
-  ctx.drawImage(img, FL, g.y, drawW, drawH);
-}
 
 function drawDangerZone() {
   if (!state.cancelMode) return;
@@ -446,14 +607,10 @@ function drawEnemies() {
   });
 }
 
-function drawPlayer() {
-  drawKnight();
-}
 
 let _aimDashOffset = 0;
 
 function drawAimLine() {
-  aimCtx.clearRect(0, 0, CW, CH);
   if (!state.isAiming || state.ballActive) return;
 
   // Cancel mode — draw indicator pill at deathline, hide aim line
@@ -480,7 +637,6 @@ function drawAimLine() {
     ctx.fill();
     ctx.globalAlpha = 1;
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 13px Roboto, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('RELEASE TO CANCEL', cx, cy);
@@ -507,47 +663,43 @@ function drawAimLine() {
   }
   const bp = pts[bounceIdx];
 
-  const ac = ctx;
-  ac.save();
+  ctx.save();
 
   // Dashed line: knight → first bounce
-  ac.strokeStyle = 'rgba(255,255,255,0.85)';
-  ac.lineWidth = 2;
-  ac.setLineDash([8, 8]);
-  ac.lineDashOffset = -_aimDashOffset;
-  ac.beginPath();
-  ac.moveTo(pts[0].x, pts[0].y);
-  ac.lineTo(bp.x, bp.y);
-  ac.stroke();
-  ac.setLineDash([]);
-  ac.lineDashOffset = 0;
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 8]);
+  ctx.lineDashOffset = -_aimDashOffset;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  ctx.lineTo(bp.x, bp.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.lineDashOffset = 0;
 
-  // Rotating target circle (50% bigger: radius 14)
-  ac.translate(bp.x, bp.y);
+  // Rotating target circle (radius 14)
+  ctx.translate(bp.x, bp.y);
   const R   = 14;
   const rot = (_aimDashOffset / 16) * Math.PI * 2;
-  // Faint full ring
-  ac.strokeStyle = 'rgba(255,255,255,0.35)';
-  ac.lineWidth = 1.5;
-  ac.beginPath();
-  ac.arc(0, 0, R, 0, Math.PI * 2);
-  ac.stroke();
-  // 3 bright spinning arcs
-  ac.strokeStyle = 'rgba(255,255,255,0.95)';
-  ac.lineWidth = 2.5;
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(0, 0, R, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+  ctx.lineWidth = 2.5;
   for (let a = 0; a < 3; a++) {
     const start = rot + (a * Math.PI * 2 / 3);
-    ac.beginPath();
-    ac.arc(0, 0, R, start, start + Math.PI * 0.45);
-    ac.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, R, start, start + Math.PI * 0.45);
+    ctx.stroke();
   }
-  // Red center dot
-  ac.fillStyle = '#ff3333';
-  ac.beginPath();
-  ac.arc(0, 0, 3.5, 0, Math.PI * 2);
-  ac.fill();
+  ctx.fillStyle = '#ff3333';
+  ctx.beginPath();
+  ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+  ctx.fill();
 
-  ac.restore();
+  ctx.restore();
 }
 
 function drawBall() {
@@ -555,17 +707,17 @@ function drawBall() {
   const { x, y, vx, vy } = state.ball;
 
   // Fading dot trail
-  if (state.trail) {
+  if (state.trail.length) {
+    ctx.save();
+    ctx.fillStyle = '#ffe066';
     state.trail.forEach((p, i) => {
       const t = (i + 1) / state.trail.length;
-      ctx.save();
       ctx.globalAlpha = t * 0.45;
-      ctx.fillStyle = '#ffe066';
       ctx.beginPath();
       ctx.arc(p.x, p.y, BALL_R * t * 0.7, 0, Math.PI * 2);
       ctx.fill();
-      ctx.restore();
     });
+    ctx.restore();
   }
 
   // Ball image: 1:1.2 stretch in travel direction, 1:1 on wall bounce
@@ -589,6 +741,34 @@ function drawBall() {
   ctx.restore();
 }
 
+function drawWallHits() {
+  if (!state.wallHits.length) return;
+  const img = IMG.hitVfx2;
+  if (!img || !img.naturalWidth) return;
+  const FI = 30;   // fade-in  0.03s
+  const HOLD = 100; // hold    0.10s
+  const FO = 50;   // fade-out 0.05s
+  const TOTAL = FI + HOLD + FO;
+  const W = 14, H = 72; // 2× taller
+  const now = performance.now();
+  state.wallHits.forEach(h => {
+    if (h.y > DIVIDER_Y) return;
+    const el = now - h.t0;
+    let alpha;
+    if (el < FI)               alpha = el / FI;
+    else if (el < FI + HOLD)   alpha = 1;
+    else                       alpha = 1 - (el - FI - HOLD) / FO;
+    const cx = h.side === 'R' ? h.x + 10 : h.side === 'L' ? h.x - 10 : h.x;
+    aimCtx.save();
+    aimCtx.globalAlpha = Math.max(0, alpha);
+    aimCtx.translate(cx, h.y);
+    if (h.side === 'R') aimCtx.scale(-1, 1);
+    aimCtx.drawImage(img, -W / 2, -H / 2, W, H);
+    aimCtx.restore();
+  });
+  state.wallHits = state.wallHits.filter(h => now - h.t0 < TOTAL);
+}
+
 function drawHitFlash() {
   if (!state.hitFlash) return;
   const f = state.hitFlash;
@@ -605,20 +785,21 @@ function drawHitFlash() {
 
 
 function drawPopups() {
+  if (!state.popups.length) return;
+  ctx.save();
+  ctx.font = 'bold 22px Roboto';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffd700';
+  ctx.strokeStyle = 'rgba(0,0,0,.8)';
+  ctx.lineWidth = 3;
   state.popups.forEach(p => {
-    const alpha = 1 - p.age / p.maxAge;
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.font = 'bold 22px Roboto';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#ffd700';
-    ctx.strokeStyle = 'rgba(0,0,0,.8)';
-    ctx.lineWidth = 3;
-    ctx.strokeText(p.text, p.x, p.y - p.age * 1.2);
-    ctx.fillText(p.text, p.x, p.y - p.age * 1.2);
-    ctx.restore();
+    const py = p.y - p.age * 1.2;
+    ctx.globalAlpha = 1 - p.age / p.maxAge;
+    ctx.strokeText(p.text, p.x, py);
+    ctx.fillText(p.text, p.x, py);
     p.age++;
   });
+  ctx.restore();
   state.popups = state.popups.filter(p => p.age < p.maxAge);
 }
 
@@ -651,39 +832,49 @@ function drawCombo() {
 
 function render() {
   ctx.clearRect(0, 0, CW, CH);
-  drawBackground();
+  aimCtx.clearRect(0, 0, CW, CH);
   if (state.screen === 'arena' || state.screen === 'bet') {
     // Screen shake — random offset that decays each frame
     let sx = 0, sy = 0;
     if (state.shake > 0) {
-      const intensity = state.shake * 0.5;
+      const intensity = state.shake * 0.65;
       sx = (Math.random() - 0.5) * intensity;
       sy = (Math.random() - 0.5) * intensity;
       state.shake--;
     }
-    updateKnight(performance.now() / 1000);
+    const nowSec = performance.now() / 1000;
+    if (state.screen === 'arena') updateKnight(nowSec);
+    updateFlag(nowSec);
+    updateFire(nowSec);
+    // Static dark fill covers canvas edges exposed by shake offset
+    ctx.fillStyle = '#2e2e38';
+    ctx.fillRect(0, 0, CW, CH);
     ctx.save();
     ctx.translate(sx, sy);
     try {
+      drawBackground();
+      drawFire();
       drawTrailPuffs();
-      // drawGrid();  // hidden — re-enable for debug
       drawDangerZone();
       drawDeathline();
-      drawEnemies();
-      drawEffects(true);   // smoke death — on top of enemies
-      drawCoins();
+      if (state.screen !== 'bet') drawEnemies();
+      drawEffects(true);
       if (state.screen === 'arena') {
         drawBall();
+        drawWallHits();
         drawHitFlash();
       }
-      drawEffects(false);  // hit sparks — on top
+      drawEffects(false);
       drawAimLine();
-      drawPlayer();
-      drawGate();
+      drawCoins();
+      drawKnightCircle();
+      drawKnight();
       drawCombo();
       drawPopups();
     } finally {
       ctx.restore();
     }
+    drawFlag();
+    drawBetMask();
   }
 }

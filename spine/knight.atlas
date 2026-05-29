@@ -1,41 +1,48 @@
 
 knight.png
-size: 209,292
+size: 232,269
 format: RGBA8888
 filter: Linear,Linear
 repeat: none
 arm
-  rotate: false
-  xy: 120, 8
+  rotate: true
+  xy: 165, 85
   size: 64, 59
   orig: 64, 59
   offset: 0, 0
   index: -1
 body
-  rotate: false
-  xy: 2, 2
+  rotate: true
+  xy: 165, 151
   size: 116, 65
   orig: 117, 65
   offset: 0, 0
   index: -1
 feet
   rotate: true
-  xy: 165, 98
+  xy: 159, 9
   size: 35, 39
   orig: 36, 39
   offset: 1, 0
   index: -1
 helmet_1
   rotate: true
-  xy: 2, 69
+  xy: 2, 46
   size: 221, 161
   orig: 221, 161
   offset: 0, 0
   index: -1
 helmet_2
-  rotate: true
-  xy: 165, 135
+  rotate: false
+  xy: 2, 2
   size: 155, 42
   orig: 155, 42
+  offset: 0, 0
+  index: -1
+shadow
+  rotate: false
+  xy: 165, 51
+  size: 57, 32
+  orig: 57, 32
   offset: 0, 0
   index: -1

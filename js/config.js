@@ -1,7 +1,6 @@
 // ── ASSETS ───────────────────────────────────────────────
 const URLS = {
   bgField:   'images/bg.png',
-  gate:      'images/gate.png',
   deathline: 'images/deathline.png',
   coin:      'images/coin.png',
   player:    'images/player.png',
@@ -13,6 +12,7 @@ const URLS = {
   smoke:     'images/smoke.png',
   hitVfx1:   'images/hit_vfx1.png',
   hitVfx2:   'images/hit_vfx2.png',
+  circle:    'images/circle.png',
 };
 
 // ── LAYOUT ───────────────────────────────────────────────

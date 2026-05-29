@@ -36,8 +36,10 @@ function resetState() {
     breaching:     false,
     coins:         [],
     _walletTarget: null,
-    cancelMode:    false,
-    gate:          null,   // { y, drawH, speed } — portcullis rise animation
+    cancelMode:       false,
+    arenaEnteredAt:   null,
+    receivedThisShot: false,
+    wallHits:         [],
   };
 }
 
@@ -214,7 +216,10 @@ function shoot() {
   state.ballActive = true;
   state.isAiming = false;
   SFX.shoot();
-  knightPlay('attack', false);
+  if (knight) {
+    knight.animState.setAnimation(0, 'attack', false);
+    knight.animState.addAnimation(0, 'attacking_idle', true, 0);
+  }
   setBanner('…');
 }
 
@@ -228,8 +233,8 @@ function stepBall() {
   if (state.trail.length > 6) state.trail.shift();
 
   // Wall bounces
-  if (b.x - BALL_R < FL) { b.x = FL + BALL_R; b.vx = Math.abs(b.vx);  state.ballSquash = 5; }
-  if (b.x + BALL_R > FR) { b.x = FR - BALL_R; b.vx = -Math.abs(b.vx); state.ballSquash = 5; }
+  if (b.x - BALL_R < FL) { b.x = FL + BALL_R; b.vx = Math.abs(b.vx);  state.ballSquash = 5; state.wallHits.push({ x: FL, y: b.y, t0: performance.now(), side: 'L' }); }
+  if (b.x + BALL_R > FR) { b.x = FR - BALL_R; b.vx = -Math.abs(b.vx); state.ballSquash = 5; state.wallHits.push({ x: FR, y: b.y, t0: performance.now(), side: 'R' }); }
   if (b.y - BALL_R < FT) { b.y = FT + BALL_R; b.vy = Math.abs(b.vy);  state.ballSquash = 5; }
   if (state.ballSquash > 0) state.ballSquash--;
 
@@ -269,7 +274,7 @@ function stepBall() {
       state.ngnEarned += payout;
       state.kills++;
       state.killsThisShot++;
-      state.shake = 10;
+      state.shake = 12;
       updateWallet();
       const streak = state.winStreak + 1;
       setBanner(streak > 1 ? `win:${payout} 🔥×${streak}` : `win:${payout}`);
@@ -445,6 +450,7 @@ function updateBetDisplay() {
 }
 function showBetUI() {
   const bot = document.getElementById('bottom');
+  bot.style.display     = 'flex';
   bot.style.paddingTop  = '80px';
   bot.style.background  = 'linear-gradient(to top,rgba(0,0,0,.55) 0%,rgba(0,0,0,0) 100%)';
   document.getElementById('bet-slider-wrap').style.display = 'block';
@@ -470,7 +476,6 @@ function showArenaUI() {
   bot.style.paddingTop = '';
   bot.style.background = '';
   document.getElementById('bet-display').style.display = 'none';
-  document.getElementById('one-tap-corner').style.display = 'flex';
   document.getElementById('action-btn').style.display = 'none';
 }
 function showBetConfirm() {
@@ -511,11 +516,6 @@ function triggerBreach() {
 }
 function goToBet() {
   resetState();
-  // Restore dark mask for bet screen (instant, no transition)
-  const mask = document.getElementById('bg-mask');
-  mask.style.transition = 'none';
-  mask.style.opacity = '1';
-  requestAnimationFrame(() => { mask.style.transition = ''; });
   showBetUI();
   updateWallet();
   updateBetDisplay();
@@ -524,8 +524,9 @@ function goToBet() {
   document.getElementById('bet-confirm').classList.remove('visible');
   document.getElementById('bet-confirm').style.display = 'none';
 }
-function goToArena(withGate = false) {
+function goToArena() {
   state.screen = 'arena';
+  state.arenaEnteredAt = performance.now();
   initArena();
   showArenaUI();
   setBanner('Aim & Shoot!');
@@ -535,14 +536,6 @@ function goToArena(withGate = false) {
     knight.skeleton.x = PLAYER_X;
     knightPlay('enter', false);
     knight.animState.addAnimation(0, 'idle', true, 0);
-  }
-  if (withGate) {
-    const img = IMG.gate;
-    const drawW = FR - FL;
-    const drawH = img && img.naturalWidth
-      ? Math.round(drawW * img.naturalHeight / img.naturalWidth)
-      : 400;
-    state.gate = { y: FT - 10, drawH, speed: 13 };
   }
 }
 function siegeAgain() {
@@ -564,7 +557,7 @@ function getCanvasPos(e) {
 }
 
 canvas.addEventListener('pointerdown', e => {
-  if (state.screen !== 'arena' || state.gate || state.ballActive || state.advancing || state.breaching) return;
+  if (state.screen !== 'arena' || state.ballActive || state.advancing || state.breaching) return;
   e.preventDefault();
   const p = getCanvasPos(e);
   state.isAiming = true;
@@ -606,11 +599,7 @@ canvas.addEventListener('pointercancel', () => {
 document.getElementById('action-btn').addEventListener('click', function() {
   if (state.screen !== 'bet') return;
   if (state.bet > state.balance) { setBanner('Bet exceeds balance!'); return; }
-  const btn = this;
-  btn.disabled = true;
-  document.getElementById('bg-mask').style.opacity = '0';
-  btn.disabled = false;
-  goToArena(true);
+  goToArena();
 });
 
 document.getElementById('btn-confirm-cancel').addEventListener('click', hideBetConfirm);
@@ -623,8 +612,7 @@ document.getElementById('btn-confirm-ok').addEventListener('click', () => {
     document.getElementById('bottom').style.display = 'none';
     shoot();
   } else {
-    document.getElementById('bg-mask').style.opacity = '0';
-    setTimeout(goToArena, 500);
+    goToArena();
   }
 });
 
@@ -659,6 +647,7 @@ function closeMenu() {
 
 document.getElementById('btn-menu').addEventListener('click', openMenu);
 document.getElementById('menu-backdrop').addEventListener('click', closeMenu);
+document.getElementById('menu-close').addEventListener('click', closeMenu);
 
 document.getElementById('menu-bgm-cb').addEventListener('change', function() {
   BGM.toggleMute();
@@ -682,10 +671,6 @@ function loop(ts) {
   if (ts - lastTime < 16) return;
   lastTime = ts;
   try {
-    if (state.gate) {
-      state.gate.y -= state.gate.speed;
-      if (state.gate.y + state.gate.drawH < 0) state.gate = null;
-    }
     if (state.screen === 'arena') {
       if (state.advancing) tickAdvance();
       else stepBall();
@@ -720,7 +705,10 @@ const barTimer = setInterval(() => {
     clearInterval(barTimer);
     setTimeout(() => {
       loadingEl.classList.add('done');
-      setTimeout(() => { loadingEl.style.display = 'none'; }, 520);
+      setTimeout(() => {
+        loadingEl.style.display = 'none';
+        document.getElementById('one-tap-prompt').classList.add('visible');
+      }, 520);
     }, 200);
   }
 }, 16);
@@ -733,6 +721,8 @@ loadAssets(() => {
   try {
     loadKnight(() => {});
     loadEnemySpines(() => {});
+    loadFlag(() => {});
+    loadFire(() => {});
     loadFX(() => {});
     resetState();
     showBetUI();
@@ -741,6 +731,23 @@ loadAssets(() => {
     const oneTapOn = isOneTapOn();
     document.getElementById('one-tap-cb').checked = oneTapOn;
     document.getElementById('one-tap-corner-cb').checked = oneTapOn;
+    document.getElementById('menu-onetap-cb').checked = oneTapOn;
+
+    document.getElementById('menu-onetap-cb').addEventListener('change', function () {
+      localStorage.setItem('bounceFcOneTap', this.checked ? '1' : '0');
+    });
+    document.getElementById('otp-yes').addEventListener('click', () => {
+      localStorage.setItem('bounceFcOneTap', '1');
+      localStorage.setItem('bounceFcOneTapPromptShown', '1');
+      document.getElementById('menu-onetap-cb').checked = true;
+      document.getElementById('one-tap-prompt').classList.remove('visible');
+    });
+    document.getElementById('otp-no').addEventListener('click', () => {
+      localStorage.setItem('bounceFcOneTap', '0');
+      localStorage.setItem('bounceFcOneTapPromptShown', '1');
+      document.getElementById('menu-onetap-cb').checked = false;
+      document.getElementById('one-tap-prompt').classList.remove('visible');
+    });
     BGM.init();
     document.getElementById('bgm-btn').addEventListener('click', () => BGM.toggleMute());
     loop(0);

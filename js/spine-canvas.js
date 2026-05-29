@@ -8260,11 +8260,20 @@ var spine;
 				var drawOrder = skeleton.drawOrder;
 				if (this.debugRendering)
 					ctx.strokeStyle = "green";
+				var blendModeImg = null;
 				ctx.save();
 				for (var i = 0, n = drawOrder.length; i < n; i++) {
 					var slot = drawOrder[i];
 					if (!slot.bone.active)
 						continue;
+					var slotBlendModeImg = slot.data.blendMode;
+					if (slotBlendModeImg !== blendModeImg) {
+						blendModeImg = slotBlendModeImg;
+						if (blendModeImg === spine.BlendMode.Additive) ctx.globalCompositeOperation = "lighter";
+						else if (blendModeImg === spine.BlendMode.Multiply) ctx.globalCompositeOperation = "multiply";
+						else if (blendModeImg === spine.BlendMode.Screen) ctx.globalCompositeOperation = "screen";
+						else ctx.globalCompositeOperation = "source-over";
+					}
 					var attachment = slot.getAttachment();
 					var regionAttachment = null;
 					var region = null;
@@ -8357,6 +8366,11 @@ var spine;
 						var slotBlendMode = slot.data.blendMode;
 						if (slotBlendMode != blendMode) {
 							blendMode = slotBlendMode;
+							var ctx_bm = this.ctx;
+							if (blendMode === spine.BlendMode.Additive) ctx_bm.globalCompositeOperation = "lighter";
+							else if (blendMode === spine.BlendMode.Multiply) ctx_bm.globalCompositeOperation = "multiply";
+							else if (blendMode === spine.BlendMode.Screen) ctx_bm.globalCompositeOperation = "screen";
+							else ctx_bm.globalCompositeOperation = "source-over";
 						}
 						var skeleton_2 = slot.bone.skeleton;
 						var skeletonColor = skeleton_2.color;

@@ -1,0 +1,27 @@
+
+flag.png
+size: 554,101
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+bar
+  rotate: false
+  xy: 365, 11
+  size: 137, 32
+  orig: 139, 33
+  offset: 1, 0
+  index: -1
+flag
+  rotate: true
+  xy: 2, 2
+  size: 97, 361
+  orig: 97, 361
+  offset: 0, 0
+  index: -1
+flag_shadow
+  rotate: true
+  xy: 365, 45
+  size: 54, 187
+  orig: 54, 187
+  offset: 0, 0
+  index: -1
