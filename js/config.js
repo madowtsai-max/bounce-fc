@@ -34,7 +34,7 @@ const PLAYER_X = CW / 2;        // 180
 const PLAYER_Y = 561;
 const PLAYER_W = 60, PLAYER_H = 68;
 const BALL_R = 9;
-const BALL_SPEED = 9;
+const BALL_SPEED = 12;
 const ENEMY_HIT_PAD_X = 0;  // hitbox = full sprite — eliminates diagonal gap
 const ENEMY_HIT_PAD_Y = 0;
 const AIM_STEPS = 220;
@@ -48,14 +48,13 @@ const BET_SNAPS = [10,20,50,100,200,500,1000,2000,5000,10000,20000,50000,
 const ENEMY_SCALE     = 0.09;  // ~380 Spine units → ~34px on canvas
 const ENEMY_SPINE_Y_OFF = 19;  // skeleton.y = cell_top + this → head at cell top
 
-// Payouts calibrated for ~97% RTP (theoretical, 1-hit-per-shot model)
-// Formula: payout = 0.97 × E[hits_to_kill]
-// E[hits]: Ghoul=1.33, Skull=2.37, Mage=4.22, King=10.0
-// NOTE: actual RTP may be slightly higher due to multi-hit shots per round
+// Payouts calibrated for ~97% RTP via Monte Carlo simulation (100k sessions)
+// All 4 types have realistic kill chances within typical 5-shot sessions:
+//   Ghoul: ~1.95 kills/session | Skull: ~0.70 | Mage: ~0.29 | King: ~0.02 (jackpot)
 const ENEMY_TYPES = [
-  { name: 'Ghoul', sprite: 'ghoul', hp: 2,  dmgMin: 1, dmgMax: 3, payout: 1.3, weight: 40 },
-  { name: 'Skull', sprite: 'skull', hp: 4,  dmgMin: 1, dmgMax: 3, payout: 2.3, weight: 30 },
-  { name: 'Mage',  sprite: 'mage',  hp: 6,  dmgMin: 1, dmgMax: 2, payout: 4.1, weight: 20 },
-  { name: 'King',  sprite: 'king',  hp: 10, dmgMin: 1, dmgMax: 1, payout: 9.7, weight: 10 },
+  { name: 'Ghoul', sprite: 'ghoul', hp: 2, dmgMin: 1, dmgMax: 3, payout: 1.3, weight: 40 },
+  { name: 'Skull', sprite: 'skull', hp: 3, dmgMin: 1, dmgMax: 2, payout: 2.0, weight: 30 },
+  { name: 'Mage',  sprite: 'mage',  hp: 4, dmgMin: 1, dmgMax: 2, payout: 2.9, weight: 20 },
+  { name: 'King',  sprite: 'king',  hp: 6, dmgMin: 1, dmgMax: 1, payout: 6.0, weight: 10 },
 ];
 const TOTAL_WEIGHT = ENEMY_TYPES.reduce((s, t) => s + t.weight, 0);

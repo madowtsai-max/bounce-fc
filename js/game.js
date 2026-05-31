@@ -197,7 +197,7 @@ function calcTrajectory(sx, sy, tx, ty) {
 function shoot() {
   if (state.ballActive || state.advancing || state.breaching) return;
   const bet = state.bet;
-  if (state.balance < bet) { setBanner('Not enough NGN!'); return; }
+  if (state.balance < bet) { openBroke(); return; }
   state.balance -= bet;
   state.ngnSpent += bet;
   state.shotsFired++;
@@ -291,6 +291,7 @@ function stepBall() {
       state.pendingSpawns++;
     } else {
       e.hitFlash = 5;
+      state.shake = 4;
       SFX.hit();
       spawnEffect('hit', cx, cy);
       enemyPlay(e, 'damage');
@@ -598,7 +599,7 @@ canvas.addEventListener('pointercancel', () => {
 
 document.getElementById('action-btn').addEventListener('click', function() {
   if (state.screen !== 'bet') return;
-  if (state.bet > state.balance) { setBanner('Bet exceeds balance!'); return; }
+  if (state.bet > state.balance) { openBroke(); return; }
   goToArena();
 });
 
@@ -657,6 +658,33 @@ document.getElementById('menu-sfx-cb').addEventListener('change', function() {
 });
 document.getElementById('btn-siege').addEventListener('click', siegeAgain);
 document.getElementById('btn-change-bet').addEventListener('click', goToBet);
+
+// ── NOT ENOUGH NGN MODAL ─────────────────────────────────
+function openBroke() {
+  document.getElementById('broke-modal').classList.add('open');
+}
+function closeBroke() {
+  document.getElementById('broke-modal').classList.remove('open');
+}
+document.getElementById('broke-backdrop').addEventListener('click', closeBroke);
+document.getElementById('broke-btn').addEventListener('click', () => {
+  closeBroke();
+  goToBet();
+});
+
+// ── PAYTABLE MODAL ────────────────────────────────────────
+function openInfo() {
+  document.getElementById('info-modal').classList.add('open');
+}
+function closeInfo() {
+  document.getElementById('info-modal').classList.remove('open');
+}
+document.getElementById('info-backdrop').addEventListener('click', closeInfo);
+document.getElementById('info-close').addEventListener('click', closeInfo);
+document.getElementById('menu-paytable-row').addEventListener('click', () => {
+  closeMenu();
+  setTimeout(openInfo, 270);
+});
 
 document.getElementById('bet-slider').addEventListener('input', function() {
   state.bet = sliderToBet(+this.value);
@@ -736,17 +764,25 @@ loadAssets(() => {
     document.getElementById('menu-onetap-cb').addEventListener('change', function () {
       localStorage.setItem('bounceFcOneTap', this.checked ? '1' : '0');
     });
+    const _maybeShowPaytable = () => {
+      if (!localStorage.getItem('bounceFcPaytableSeen')) {
+        setTimeout(openInfo, 350);
+        localStorage.setItem('bounceFcPaytableSeen', '1');
+      }
+    };
     document.getElementById('otp-yes').addEventListener('click', () => {
       localStorage.setItem('bounceFcOneTap', '1');
       localStorage.setItem('bounceFcOneTapPromptShown', '1');
       document.getElementById('menu-onetap-cb').checked = true;
       document.getElementById('one-tap-prompt').classList.remove('visible');
+      _maybeShowPaytable();
     });
     document.getElementById('otp-no').addEventListener('click', () => {
       localStorage.setItem('bounceFcOneTap', '0');
       localStorage.setItem('bounceFcOneTapPromptShown', '1');
       document.getElementById('menu-onetap-cb').checked = false;
       document.getElementById('one-tap-prompt').classList.remove('visible');
+      _maybeShowPaytable();
     });
     BGM.init();
     document.getElementById('bgm-btn').addEventListener('click', () => BGM.toggleMute());

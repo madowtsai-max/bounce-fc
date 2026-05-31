@@ -495,6 +495,105 @@ canvas {
 }
 .wallet-flash { animation: walletPulse .4s ease-out forwards; }
 /* popups rendered on canvas — no DOM class needed */
+/* ── NOT ENOUGH NGN MODAL ── */
+#broke-modal {
+  position:absolute; inset:0;
+  z-index:60;
+  display:none;
+  align-items:flex-end;
+  justify-content:center;
+}
+#broke-modal.open { display:flex; }
+#broke-backdrop {
+  position:absolute; inset:0;
+  background:rgba(0,0,0,.65);
+}
+#broke-sheet {
+  position:relative;
+  background:#1a1a2e;
+  border-radius:18px 18px 0 0;
+  padding:28px 24px 32px;
+  width:360px;
+  z-index:1;
+  text-align:center;
+}
+#broke-icon { font-size:36px; margin-bottom:10px; }
+#broke-title {
+  color:#fff;
+  font-size:16px; font-weight:700;
+  letter-spacing:.5px; margin-bottom:8px;
+}
+#broke-msg {
+  color:rgba(255,255,255,.5);
+  font-size:13px; line-height:1.5;
+  margin-bottom:24px;
+}
+#broke-btn {
+  width:100%; height:48px;
+  background:#f33;
+  border:none; border-radius:8px;
+  color:#fff; font-size:15px; font-weight:700;
+  cursor:pointer; letter-spacing:.5px;
+}
+/* ── PAYTABLE MODAL ── */
+#info-modal {
+  position:absolute; inset:0;
+  z-index:60;
+  display:none;
+  align-items:center;
+  justify-content:center;
+}
+#info-modal.open { display:flex; }
+#info-backdrop {
+  position:absolute; inset:0;
+  background:rgba(0,0,0,.72);
+}
+#info-box {
+  position:relative;
+  background:#1a1a2e;
+  border:1px solid rgba(255,255,255,.15);
+  border-radius:14px;
+  padding:28px 24px 20px;
+  width:280px;
+  z-index:1;
+}
+#info-close {
+  position:absolute; top:12px; right:14px;
+  background:none; border:none;
+  color:rgba(255,255,255,.45);
+  font-size:20px; line-height:1;
+  cursor:pointer; padding:2px 4px;
+}
+#info-title {
+  text-align:center;
+  color:#ffd700;
+  font-size:12px; font-weight:700;
+  letter-spacing:2.5px; text-transform:uppercase;
+  margin-bottom:18px;
+}
+.info-row {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:11px 0;
+  border-bottom:1px solid rgba(255,255,255,.07);
+}
+.info-enemy {
+  display:flex; align-items:center; gap:10px;
+  color:#fff; font-size:13px; font-weight:600;
+}
+.info-enemy-icon { font-size:20px; width:26px; text-align:center; }
+.info-payout {
+  color:#ffd700;
+  font-size:15px; font-weight:700;
+}
+.info-payout.jackpot { color:#ff9f43; }
+.info-rtp {
+  text-align:center;
+  color:rgba(255,255,255,.38);
+  font-size:11px; letter-spacing:.5px;
+  margin-top:16px; line-height:1.6;
+}
 /* ── ONE-TAP PROMPT ── */
 #one-tap-prompt {
   position:absolute;
@@ -639,6 +738,43 @@ canvas {
     </div>
   </div>
 
+  <!-- Not Enough NGN modal -->
+  <div id="broke-modal">
+    <div id="broke-backdrop"></div>
+    <div id="broke-sheet">
+      <div id="broke-icon">💸</div>
+      <div id="broke-title">Not Enough NGN</div>
+      <div id="broke-msg">Your balance is too low for this bet.<br>Go back and adjust your stake.</div>
+      <button id="broke-btn">BACK TO LOBBY</button>
+    </div>
+  </div>
+
+  <!-- Paytable modal -->
+  <div id="info-modal">
+    <div id="info-backdrop"></div>
+    <div id="info-box">
+      <button id="info-close">✕</button>
+      <div id="info-title">Paytable</div>
+      <div class="info-row">
+        <div class="info-enemy"><span class="info-enemy-icon">👻</span><span>Ghoul</span></div>
+        <div class="info-payout">× 1.3</div>
+      </div>
+      <div class="info-row">
+        <div class="info-enemy"><span class="info-enemy-icon">💀</span><span>Skull</span></div>
+        <div class="info-payout">× 2.0</div>
+      </div>
+      <div class="info-row">
+        <div class="info-enemy"><span class="info-enemy-icon">🧙</span><span>Mage</span></div>
+        <div class="info-payout">× 2.9</div>
+      </div>
+      <div class="info-row">
+        <div class="info-enemy"><span class="info-enemy-icon">👑</span><span>King</span></div>
+        <div class="info-payout jackpot">× 6.0</div>
+      </div>
+      <div class="info-rtp">Return to Player (RTP): 97%<br>Multipliers applied to your bet per kill.</div>
+    </div>
+  </div>
+
   <!-- Menu panel -->
   <div id="menu-panel">
     <div id="menu-backdrop"></div>
@@ -674,6 +810,13 @@ canvas {
           <input type="checkbox" id="menu-onetap-cb">
           <span class="menu-sw-track"></span>
         </label>
+      </div>
+      <div class="menu-row" id="menu-paytable-row" style="cursor:pointer">
+        <div class="menu-row-label">
+          <span class="menu-row-icon">📊</span>
+          <span>Paytable</span>
+        </div>
+        <span style="color:rgba(255,255,255,.35);font-size:20px;line-height:1">›</span>
       </div>
     </div>
   </div>
