@@ -546,53 +546,60 @@ canvas {
 #info-modal.open { display:flex; }
 #info-backdrop {
   position:absolute; inset:0;
-  background:rgba(0,0,0,.72);
+  background:rgba(0,0,0,.78);
 }
 #info-box {
   position:relative;
-  background:#1a1a2e;
-  border:1px solid rgba(255,255,255,.15);
+  background:#111;
   border-radius:14px;
-  padding:28px 24px 20px;
-  width:280px;
+  padding:0 0 16px;
+  width:308px;
   z-index:1;
+  overflow:hidden;
 }
 #info-close {
-  position:absolute; top:12px; right:14px;
+  position:absolute; top:13px; right:14px;
   background:none; border:none;
-  color:rgba(255,255,255,.45);
+  color:rgba(255,255,255,.55);
   font-size:20px; line-height:1;
   cursor:pointer; padding:2px 4px;
 }
 #info-title {
   text-align:center;
-  color:#ffd700;
-  font-size:12px; font-weight:700;
-  letter-spacing:2.5px; text-transform:uppercase;
-  margin-bottom:18px;
+  color:#ffd120;
+  font-size:18px; font-weight:800;
+  letter-spacing:1px; text-transform:uppercase;
+  margin:14px 0 14px;
 }
 .info-row {
   display:flex;
   align-items:center;
   justify-content:space-between;
-  padding:11px 0;
-  border-bottom:1px solid rgba(255,255,255,.07);
+  padding:10px 16px;
+}
+.info-divider {
+  height:1px;
+  background:rgba(255,255,255,.10);
+  margin:0 16px;
 }
 .info-enemy {
-  display:flex; align-items:center; gap:10px;
-  color:#fff; font-size:13px; font-weight:600;
+  display:flex; align-items:center; gap:12px;
+  color:#fff; font-size:14px; font-weight:700;
 }
-.info-enemy-icon { font-size:20px; width:26px; text-align:center; }
+.info-enemy-icon {
+  width:40px; height:40px;
+  object-fit:contain; flex-shrink:0;
+}
 .info-payout {
-  color:#ffd700;
-  font-size:15px; font-weight:700;
+  color:#fff;
+  font-size:14px; font-weight:700;
 }
-.info-payout.jackpot { color:#ff9f43; }
 .info-rtp {
   text-align:center;
-  color:rgba(255,255,255,.38);
-  font-size:11px; letter-spacing:.5px;
-  margin-top:16px; line-height:1.6;
+  color:rgba(255,255,255,.35);
+  font-size:11px; letter-spacing:.3px;
+  margin-top:14px; line-height:1.6;
+  padding:0 16px;
 }
 /* ── ONE-TAP PROMPT ── */
 #one-tap-prompt {
@@ -754,24 +761,27 @@ canvas {
     <div id="info-backdrop"></div>
     <div id="info-box">
       <button id="info-close">✕</button>
-      <div id="info-title">Paytable</div>
+      <div id="info-title">PAYTABLE</div>
       <div class="info-row">
-        <div class="info-enemy"><span class="info-enemy-icon">👻</span><span>Ghoul</span></div>
-        <div class="info-payout">× 1.3</div>
+        <div class="info-enemy"><img class="info-enemy-icon" src="images/paytable_icon/ghoul.png" alt="Ghoul"><span>GHOUL</span></div>
+        <div class="info-payout">×1.3</div>
       </div>
+      <div class="info-divider"></div>
       <div class="info-row">
-        <div class="info-enemy"><span class="info-enemy-icon">💀</span><span>Skull</span></div>
-        <div class="info-payout">× 2.0</div>
+        <div class="info-enemy"><img class="info-enemy-icon" src="images/paytable_icon/skull.png" alt="Skull"><span>SKULL</span></div>
+        <div class="info-payout">×2</div>
       </div>
+      <div class="info-divider"></div>
       <div class="info-row">
-        <div class="info-enemy"><span class="info-enemy-icon">🧙</span><span>Mage</span></div>
-        <div class="info-payout">× 2.9</div>
+        <div class="info-enemy"><img class="info-enemy-icon" src="images/paytable_icon/mage.png" alt="Mage"><span>MAGE</span></div>
+        <div class="info-payout">×2.9</div>
       </div>
+      <div class="info-divider"></div>
       <div class="info-row">
-        <div class="info-enemy"><span class="info-enemy-icon">👑</span><span>King</span></div>
-        <div class="info-payout jackpot">× 6.0</div>
+        <div class="info-enemy"><img class="info-enemy-icon" src="images/paytable_icon/king.png" alt="King"><span>KING</span></div>
+        <div class="info-payout">×4.5</div>
       </div>
-      <div class="info-rtp">Return to Player (RTP): 97%<br>Multipliers applied to your bet per kill.</div>
+      <div class="info-rtp">Multipliers applied to your bet per kill.</div>
     </div>
   </div>
 

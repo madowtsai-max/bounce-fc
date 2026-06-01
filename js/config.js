@@ -52,9 +52,9 @@ const ENEMY_SPINE_Y_OFF = 19;  // skeleton.y = cell_top + this → head at cell 
 // All 4 types have realistic kill chances within typical 5-shot sessions:
 //   Ghoul: ~1.95 kills/session | Skull: ~0.70 | Mage: ~0.29 | King: ~0.02 (jackpot)
 const ENEMY_TYPES = [
-  { name: 'Ghoul', sprite: 'ghoul', hp: 2, dmgMin: 1, dmgMax: 3, payout: 1.3, weight: 40 },
+  { name: 'Ghoul', sprite: 'ghoul', hp: 2, dmgMin: 1, dmgMax: 2, payout: 1.3, weight: 40 },
   { name: 'Skull', sprite: 'skull', hp: 3, dmgMin: 1, dmgMax: 2, payout: 2.0, weight: 30 },
   { name: 'Mage',  sprite: 'mage',  hp: 4, dmgMin: 1, dmgMax: 2, payout: 2.9, weight: 20 },
-  { name: 'King',  sprite: 'king',  hp: 6, dmgMin: 1, dmgMax: 1, payout: 6.0, weight: 10 },
+  { name: 'King',  sprite: 'king',  hp: 6, dmgMin: 1, dmgMax: 2, payout: 4.5, weight: 10 },
 ];
 const TOTAL_WEIGHT = ENEMY_TYPES.reduce((s, t) => s + t.weight, 0);

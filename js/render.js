@@ -87,6 +87,59 @@ function updateKnight(nowSec) {
   knight.skeleton.updateWorldTransform();
 }
 
+// ── SPINE KNIGHT START (bet screen) ──────────────────────
+let knightStart = null;
+
+function loadKnightStart(cb) {
+  const base = 'spine/';
+  const imgEl = new Image();
+  imgEl.onerror = () => cb();
+  imgEl.onload = () => {
+    Promise.all([
+      fetch(base + 'knight_start.atlas').then(r => r.text()),
+      fetch(base + 'knight_start.json').then(r => r.json()),
+    ]).then(([atlasText, jsonData]) => {
+      const textureAtlas = new spine.TextureAtlas(atlasText, () => new spine.canvas.CanvasTexture(imgEl));
+      const skelData = new spine.SkeletonJson(new spine.AtlasAttachmentLoader(textureAtlas)).readSkeletonData(jsonData);
+      const skeleton = new spine.Skeleton(skelData);
+      skeleton.scaleX =  1 / 3;
+      skeleton.scaleY = -1 / 3;
+      skeleton.x = CW / 2;
+      skeleton.y = Math.round((FT + DIVIDER_Y) / 2); // center of castle frame opening ≈ 320
+      const stateData = new spine.AnimationStateData(skelData);
+      stateData.defaultMix = 0.1;
+      const animState = new spine.AnimationState(stateData);
+      animState.setAnimation(0, 'idle', true);
+      const renderer = new spine.canvas.SkeletonRenderer(ctx);
+      renderer.debugRendering = false;
+      knightStart = { skeleton, animState, renderer, lastTime: performance.now() / 1000 };
+      cb();
+    }).catch(() => cb());
+  };
+  imgEl.src = base + 'knight_start.png';
+}
+
+function knightStartPlay(anim, loop = false) {
+  if (!knightStart) return;
+  knightStart.animState.setAnimation(0, anim, loop);
+}
+
+function updateKnightStart(nowSec) {
+  if (!knightStart) return;
+  const delta = Math.min(nowSec - knightStart.lastTime, 0.05);
+  knightStart.lastTime = nowSec;
+  knightStart.animState.update(delta);
+  knightStart.animState.apply(knightStart.skeleton);
+  knightStart.skeleton.updateWorldTransform();
+}
+
+function drawKnightStart() {
+  if (state.screen !== 'bet' || !knightStart) return;
+  ctx.save();
+  knightStart.renderer.draw(knightStart.skeleton);
+  ctx.restore();
+}
+
 // ── SPINE BALL ────────────────────────────────────────────
 let ballSkel = null;  // { skeleton, animState, renderer, lastTime }
 
@@ -377,16 +430,17 @@ function drawTrailPuffs() {
   if (!state.trailPuffs.length) return;
   const img = IMG.smoke;
   const hasImg = img && img.naturalWidth > 0;
-  const MAX_AGE = 30;
+  const MAX_AGE = 40;
   ctx.save();
   state.trailPuffs.forEach(p => {
     const t = p.age / MAX_AGE;
-    const size = 20 + t * 30;
-    ctx.globalAlpha = (1 - t) * 0.9;
+    const size = 28 + t * 28; // 28→56px, grows as it fades
+    ctx.globalAlpha = (1 - t) * 0.65;
+    p.y -= 0.5; // drift upward (opposite to enemy movement)
     if (hasImg) {
       ctx.drawImage(img, p.x - size / 2, p.y - size / 2, size, size);
     } else {
-      ctx.fillStyle = '#fff';
+      ctx.fillStyle = 'rgba(200,200,200,0.5)';
       ctx.beginPath();
       ctx.arc(p.x, p.y, size / 2, 0, Math.PI * 2);
       ctx.fill();
@@ -578,27 +632,34 @@ function drawEnemies() {
     const sx = x + (CELL_W - ENEMY_W) / 2;
     const sy = y + (CELL_H - ENEMY_H) / 2;
     const t = ENEMY_TYPES[e.typeIdx];
+    let skeleton = null;
+
     if (e.spine && enemyRenderer) {
-      const { skeleton, animState } = e.spine;
+      const { skeleton: skel, animState } = e.spine;
+      skeleton = skel;
       const delta = Math.min(now - e.spine.lastTime, 0.05);
       e.spine.lastTime = now;
       animState.update(delta);
-      animState.apply(skeleton);
-      skeleton.x = x + CELL_W / 2;
-      skeleton.y = y + ENEMY_SPINE_Y_OFF;
-      skeleton.updateWorldTransform();
+      animState.apply(skel);
+      skel.x = x + CELL_W / 2;
+      skel.y = y + ENEMY_SPINE_Y_OFF;
+      skel.updateWorldTransform();
       ctx.save();
-      enemyRenderer.draw(skeleton);
+      enemyRenderer.draw(skel);
       ctx.restore();
     } else {
       safeDrawImage(IMG[t.sprite], sx, sy, ENEMY_W, ENEMY_H);
     }
+
     if (e.hitFlash > 0) {
       ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = (e.hitFlash / 5) * 0.6;
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(sx - 4, sy - 4, ENEMY_W + 8, ENEMY_H + 8);
+      ctx.globalAlpha = e.hitFlash / 5;
+      ctx.filter = 'saturate(0) brightness(8)';
+      if (skeleton) {
+        enemyRenderer.draw(skeleton);
+      } else {
+        safeDrawImage(IMG[t.sprite], sx, sy, ENEMY_W, ENEMY_H);
+      }
       ctx.restore();
       e.hitFlash--;
     }
@@ -844,6 +905,7 @@ function render() {
     }
     const nowSec = performance.now() / 1000;
     if (state.screen === 'arena') updateKnight(nowSec);
+    if (state.screen === 'bet') updateKnightStart(nowSec);
     updateFlag(nowSec);
     updateFire(nowSec);
     // Static dark fill covers canvas edges exposed by shake offset
@@ -876,5 +938,6 @@ function render() {
     }
     drawFlag();
     drawBetMask();
+    drawKnightStart();
   }
 }

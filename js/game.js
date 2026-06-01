@@ -324,15 +324,15 @@ function stepBall() {
 }
 
 // ── ADVANCE ANIMATION ────────────────────────────────────
-const TRAIL_SPAWN_AT = [1, Math.round(CELL_H / 2), CELL_H - 2];
+const TRAIL_SPAWN_AT = [1, 6, 12, 18, 24, 30, 35];
 
 function spawnTrailPuffs() {
   state.enemies.forEach(e => {
     if (e.dying) return;
     const { x, y } = enemyXY(e.col, e.row);
     state.trailPuffs.push({
-      x: x + CELL_W / 2 + (Math.random() - 0.5) * 8,
-      y: y + CELL_H,
+      x: x + CELL_W / 2 + (Math.random() - 0.5) * 12,
+      y: y + state.advanceOffset + CELL_H / 2 + (Math.random() - 0.5) * 8,
       age: 0,
     });
   });
@@ -524,6 +524,7 @@ function goToBet() {
   document.getElementById('breach').style.display = 'none';
   document.getElementById('bet-confirm').classList.remove('visible');
   document.getElementById('bet-confirm').style.display = 'none';
+  knightStartPlay('idle', true);
 }
 function goToArena() {
   state.screen = 'arena';
@@ -600,7 +601,9 @@ canvas.addEventListener('pointercancel', () => {
 document.getElementById('action-btn').addEventListener('click', function() {
   if (state.screen !== 'bet') return;
   if (state.bet > state.balance) { openBroke(); return; }
-  goToArena();
+  knightStartPlay('start', false);
+  knightStart && knightStart.animState.addAnimation(0, 'idle', true, 0);
+  setTimeout(goToArena, 350);
 });
 
 document.getElementById('btn-confirm-cancel').addEventListener('click', hideBetConfirm);
@@ -748,6 +751,7 @@ document.addEventListener('pointerdown', onLoadingTap);
 loadAssets(() => {
   try {
     loadKnight(() => {});
+    loadKnightStart(() => {});
     loadEnemySpines(() => {});
     loadFlag(() => {});
     loadFire(() => {});
