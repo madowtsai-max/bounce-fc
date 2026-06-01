@@ -434,7 +434,7 @@ function drawTrailPuffs() {
   ctx.save();
   state.trailPuffs.forEach(p => {
     const t = p.age / MAX_AGE;
-    const size = 28 + t * 28; // 28→56px, grows as it fades
+    const size = 36 - t * 16; // 36→20px, shrinks as it fades
     ctx.globalAlpha = (1 - t) * 0.65;
     p.y -= 0.5; // drift upward (opposite to enemy movement)
     if (hasImg) {
@@ -891,6 +891,21 @@ function drawCombo() {
   ctx.restore();
 }
 
+function drawAimGlow() {
+  if (state.screen !== 'arena' || !state.isAiming) return;
+  const grad = ctx.createLinearGradient(0, CH, 0, DIVIDER_Y);
+  grad.addColorStop(0,    '#ffffff');
+  grad.addColorStop(0.05, '#FF9900');
+  grad.addColorStop(1.0,  'rgba(255,153,0,0)');
+  // breathing: alpha 100%→50%→100% over 2s, cosine gives natural ease-in/out
+  const breathe = 0.75 + 0.25 * Math.cos(performance.now() * Math.PI * 2 / 2000);
+  ctx.save();
+  ctx.globalAlpha = breathe;
+  ctx.fillStyle = grad;
+  ctx.fillRect(FL, DIVIDER_Y, FR - FL, CH - DIVIDER_Y);
+  ctx.restore();
+}
+
 function render() {
   ctx.clearRect(0, 0, CW, CH);
   aimCtx.clearRect(0, 0, CW, CH);
@@ -929,6 +944,7 @@ function render() {
       drawEffects(false);
       drawAimLine();
       drawCoins();
+      drawAimGlow();
       drawKnightCircle();
       drawKnight();
       drawCombo();

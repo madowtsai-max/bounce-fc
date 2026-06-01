@@ -324,15 +324,15 @@ function stepBall() {
 }
 
 // ── ADVANCE ANIMATION ────────────────────────────────────
-const TRAIL_SPAWN_AT = [1, 6, 12, 18, 24, 30, 35];
+const TRAIL_SPAWN_AT = [2, 11, 21, 31];
 
 function spawnTrailPuffs() {
   state.enemies.forEach(e => {
     if (e.dying) return;
     const { x, y } = enemyXY(e.col, e.row);
     state.trailPuffs.push({
-      x: x + CELL_W / 2 + (Math.random() - 0.5) * 12,
-      y: y + state.advanceOffset + CELL_H / 2 + (Math.random() - 0.5) * 8,
+      x: x + CELL_W / 2 + (Math.random() - 0.5) * CELL_W,
+      y: y + state.advanceOffset + (Math.random() - 0.5) * CELL_H,
       age: 0,
     });
   });
