@@ -848,14 +848,14 @@ function drawHitFlash() {
 function drawPopups() {
   if (!state.popups.length) return;
   ctx.save();
-  ctx.font = 'bold 22px Roboto';
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#ffd700';
   ctx.strokeStyle = 'rgba(0,0,0,.8)';
   ctx.lineWidth = 3;
   state.popups.forEach(p => {
     const py = p.y - p.age * 1.2;
     ctx.globalAlpha = 1 - p.age / p.maxAge;
+    ctx.font = `${p.fontSize || 22}px Bangers`;
+    ctx.fillStyle = p.color || '#ffd700';
     ctx.strokeText(p.text, p.x, py);
     ctx.fillText(p.text, p.x, py);
     p.age++;

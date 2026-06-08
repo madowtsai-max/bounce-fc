@@ -2,6 +2,18 @@
 const SFX = (() => {
   let ctx = null;
   let idleTimer = null;
+  let victoryBuffer = null;
+
+  function loadVictory() {
+    fetch('audio/Cartoon Victory.wav')
+      .then(r => r.arrayBuffer())
+      .then(ab => {
+        const c = new (window.AudioContext || window.webkitAudioContext)();
+        return c.decodeAudioData(ab).then(buf => { victoryBuffer = buf; c.close(); });
+      })
+      .catch(() => {});
+  }
+  loadVictory();
 
   function getCtx() {
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -103,6 +115,18 @@ const SFX = (() => {
       playNoise({ gain: 0.25, attack: 0.02, release: 0.18, filter: 120 });
       playTone({ freq: 80, freqEnd: 60, type: 'sawtooth', gain: 0.2,
                  attack: 0.02, decay: 0.1, sustain: 0.1, release: 0.12, duration: 0.25 });
+    },
+
+    bigWin() {
+      if (sfxMuted || !victoryBuffer) return;
+      const c = getCtx();
+      const src = c.createBufferSource();
+      src.buffer = victoryBuffer;
+      const gain = c.createGain();
+      gain.gain.value = 0.4;
+      src.connect(gain);
+      gain.connect(c.destination);
+      src.start(c.currentTime);
     },
   };
 })();

@@ -1,3 +1,15 @@
+// ── HELPERS ───────────────────────────────────────────────
+function fmt(v) {
+  return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function comboPayout(kills) {
+  if (kills >= 7) return 3.5 + Math.random() * 5.5;   // x3.5~9.0
+  if (kills >= 4) return 1.85 + Math.random() * 2.65; // x1.85~4.5
+  if (kills >= 2) return 1.05 + Math.random() * 1.15; // x1.05~2.2
+  return 0.87 + Math.random() * 0.8;                  // x0.87~1.67  (1 kill)
+}
+
 // ── STATE ─────────────────────────────────────────────────
 let state = {};
 
@@ -26,6 +38,7 @@ function resetState() {
     trail:         [],
     shake:         0,
     winStreak:     0,
+    winBannerMs:   0,
     killsThisShot: 0,
     hitCombo:      0,
     comboFlash:    0,
@@ -44,6 +57,19 @@ function resetState() {
 }
 
 // ── ENEMY MANAGEMENT ─────────────────────────────────────
+function spawnEnemyAt(col, row) {
+  let acc = 0, typeIdx = 0;
+  const roll = Math.random() * TOTAL_WEIGHT;
+  for (let i = 0; i < ENEMY_TYPES.length; i++) {
+    acc += ENEMY_TYPES[i].weight;
+    if (roll < acc) { typeIdx = i; break; }
+  }
+  const t = ENEMY_TYPES[typeIdx];
+  const enemy = { typeIdx, hp: t.hp, maxHp: t.hp, col, row };
+  enemy.spine = createEnemySpine(t.sprite);
+  state.enemies.push(enemy);
+}
+
 function spawnEnemy() {
   const empty = [];
   for (let r = 0; r <= MAX_SPAWN_ROW; r++)
@@ -127,9 +153,7 @@ function updateCoins() {
 
 function initArena() {
   state.enemies = [];
-  for (let r = 0; r < 3; r++)
-    for (let c = 0; c < COLS; c++)
-      spawnEnemy();
+  for (let i = 0; i < 21; i++) spawnEnemy();
   state.ball = null;
   state.ballActive = false;
 }
@@ -269,17 +293,10 @@ function stepBall() {
     const dmg = t.dmgMin + Math.floor(Math.random() * (t.dmgMax - t.dmgMin + 1));
     e.hp = Math.max(0, e.hp - dmg);
     if (e.hp <= 0) {
-      const payout = Math.round(state.bet * t.payout);
-      state.balance += payout;
-      state.ngnEarned += payout;
       state.kills++;
       state.killsThisShot++;
       state.shake = 12;
-      updateWallet();
-      const streak = state.winStreak + 1;
-      setBanner(streak > 1 ? `win:${payout} 🔥×${streak}` : `win:${payout}`);
-      addPopup(r.x + r.w / 2, r.y, `+${payout}`);
-      spawnCoins(r.x + r.w / 2, r.y + r.h / 2, payout);
+      addPopup(r.x + r.w / 2, r.y, `kill!`, '#ff3333', 14);
       e.dying = true;
       e.hitFlash = 5;
       SFX.kill();
@@ -310,8 +327,31 @@ function stepBall() {
   if (b.y > PLAYER_Y && b.vy > 0) {
     if (knight) { knightPlay('start', false); }
     state.knightReturnTimer = 10; // stay ~1/6s then slide back
-    if (state.killsThisShot > 0) state.winStreak++;
-    else state.winStreak = 0;
+    if (state.killsThisShot > 0) {
+      state.winStreak++;
+      const mult = comboPayout(state.killsThisShot);
+      const payout = Math.round(state.bet * mult);
+      state.balance += payout;
+      state.ngnEarned += payout;
+      updateWallet();
+      spawnCoins(PLAYER_X, PLAYER_Y - 40, payout);
+      const net = payout - state.bet;
+      if (net > 0) {
+        setBanner(`+${fmt(net)} NGN`, '#F9D418');
+        state.winBannerMs = 2000;
+      } else {
+        setBanner(`${fmt(net)} NGN`);
+        state.winBannerMs = 1000;
+      }
+      if (mult >= 2.0) {
+        showBigWin(mult, payout);
+        state.winBannerMs = 2500;
+      }
+    } else {
+      state.winStreak = 0;
+      setBanner(`-${fmt(state.bet)} NGN`);
+      state.winBannerMs = 1000;
+    }
     state.ballActive = false;
     state.ball = null;
     state.trail = [];
@@ -389,28 +429,26 @@ function finishAdvance() {
   state.pendingSpawns = 0;
 
   const breached = state.enemies.filter(e => !e.dying && enemyXY(e.col, e.row).y + ENEMY_H > DIVIDER_Y);
-  if (breached.length > 0) {
-    state.breaching = true;
-    state.isAiming = false;
-    breached.forEach(e => {
-      const { x, y } = enemyXY(e.col, e.row);
-      spawnEffect('hit',   x + CELL_W / 2, y + CELL_H / 2);
-      spawnEffect('smoke', x + CELL_W / 2, y + CELL_H / 2);
-      e.dying = true;
-      enemyPlay(e, 'dead');
-      const ref = e;
-      setTimeout(() => { state.enemies = state.enemies.filter(x => x !== ref); }, 450);
-    });
-    setTimeout(triggerBreach, 700);
-  } else {
-    knightPlay('idle', true);
+  breached.forEach(e => {
+    const { x, y } = enemyXY(e.col, e.row);
+    spawnEffect('smoke', x + CELL_W / 2, y + CELL_H / 2);
+    e.dying = true;
+    enemyPlay(e, 'dead');
+    state.pendingSpawns++;
+    const ref = e;
+    setTimeout(() => { state.enemies = state.enemies.filter(x => x !== ref); }, 450);
+  });
+  knightPlay('idle', true);
+  const bannerDelay = state.winBannerMs || 0;
+  state.winBannerMs = 0;
+  setTimeout(() => {
     setBanner(`Round ${state.round} — speed ×${(ballSpeed()/BALL_SPEED).toFixed(1)}`);
     setTimeout(() => { if (state.screen === 'arena') setBanner('Aim & Shoot!'); }, 1200);
-  }
+  }, bannerDelay);
 }
 
-function addPopup(x, y, text) {
-  state.popups.push({ x, y, text, age: 0, maxAge: 40 });
+function addPopup(x, y, text, color, fontSize) {
+  state.popups.push({ x, y, text, age: 0, maxAge: 40, color, fontSize });
 }
 
 // ── UI HELPERS ───────────────────────────────────────────
@@ -420,7 +458,43 @@ function enemyPlay(e, anim) {
   if (anim !== 'dead') e.spine.animState.addAnimation(0, 'idle', true, 0);
 }
 
-function setBanner(txt)  { document.getElementById('banner').textContent = txt; }
+function setBanner(txt, color) {
+  const el = document.getElementById('banner');
+  el.textContent = txt;
+  el.style.color = color || '#fff';
+}
+
+const BIGWIN_FRAMES = Array.from({length: 17}, (_, i) =>
+  `images/bigwin/win${String(i).padStart(2,'0')}.png`);
+let _bigwinAnimTimer = null;
+
+function showBigWin(mult, payout) {
+  const el = document.getElementById('big-win-popup');
+  document.getElementById('big-win-mult').textContent = `×${mult.toFixed(1)}`;
+  document.getElementById('big-win-amount').textContent = `+${fmt(payout)} NGN`;
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+  setTimeout(() => { el.classList.remove('show'); }, 2500);
+  SFX.bigWin();
+
+  // Frame animation
+  if (_bigwinAnimTimer) { clearInterval(_bigwinAnimTimer); _bigwinAnimTimer = null; }
+  const img = document.getElementById('bigwin-anim-img');
+  img.style.visibility = 'visible';
+  let frame = 0;
+  img.src = BIGWIN_FRAMES[0];
+  _bigwinAnimTimer = setInterval(() => {
+    frame++;
+    if (frame >= BIGWIN_FRAMES.length) {
+      clearInterval(_bigwinAnimTimer);
+      _bigwinAnimTimer = null;
+      img.style.visibility = 'hidden';
+      return;
+    }
+    img.src = BIGWIN_FRAMES[frame];
+  }, 60);
+}
 function updateWallet()  {
   document.getElementById('wallet-amount').textContent =
     state.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

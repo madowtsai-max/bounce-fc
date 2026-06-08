@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=360, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Bounce FC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bangers&display=swap" rel="stylesheet">
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
@@ -82,7 +84,8 @@ canvas {
   width:242px; height:27px;
   background:url('images/infobar.png') no-repeat center/100% 100%;
   color:#fff;
-  font-size:12px; font-weight:700;
+  font-family:'Bangers', cursive;
+  font-size:15px; letter-spacing:1px;
   text-align:center;
   line-height:27px;
   white-space:nowrap;
@@ -210,6 +213,59 @@ canvas {
 #one-tap-cb:checked + #one-tap-slider { background:#2a9d2a; }
 #one-tap-cb:checked + #one-tap-slider::before { transform:translateX(20px); }
 /* ── BREACH OVERLAY ── */
+#big-win-popup {
+  display:none;
+  position:absolute;
+  inset:0;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  z-index:25;
+  pointer-events:none;
+}
+#big-win-popup.show {
+  display:flex;
+  animation: bigWinFade 2.5s forwards;
+}
+@keyframes bigWinFade {
+  0%   { opacity:0; transform:scale(0.8); }
+  15%  { opacity:1; transform:scale(1.08); }
+  70%  { opacity:1; transform:scale(1); }
+  100% { opacity:0; transform:scale(1); }
+}
+#bigwin-anim-img {
+  position:absolute;
+  width:267px; height:267px;
+  top:50%; left:50%;
+  transform:translate(-50%, -50%);
+  mix-blend-mode:screen;
+  pointer-events:none;
+}
+#big-win-mult,
+#big-win-label {
+  font-family:'Bangers', cursive;
+  font-size:60px;
+  line-height:1; letter-spacing:1px;
+  text-transform:uppercase;
+  text-shadow:
+    -2px -2px 0 #000,  2px -2px 0 #000,
+    -2px  2px 0 #000,  2px  2px 0 #000,
+     0   -2px 0 #000,  0    2px 0 #000,
+    -2px  0   0 #000,  2px  0   0 #000;
+}
+#big-win-mult { color:#fff; margin-top:2px; }
+#big-win-label { color:#F9D418; }
+#big-win-amount {
+  font-family:'Bangers', cursive;
+  font-size:28px; letter-spacing:1px;
+  color:#F9D418; margin-top:4px;
+  text-shadow:
+    -2px -2px 0 #000,  2px -2px 0 #000,
+    -2px  2px 0 #000,  2px  2px 0 #000,
+     0   -2px 0 #000,  0    2px 0 #000,
+    -2px  0   0 #000,  2px  0   0 #000;
+}
+
 #breach {
   display:none;
   position:absolute;
@@ -729,6 +785,14 @@ canvas {
       </label>
     </div>
     <button id="action-btn">START</button>
+  </div>
+
+  <!-- Big win popup -->
+  <div id="big-win-popup">
+    <img id="bigwin-anim-img" src="">
+    <div id="big-win-mult"></div>
+    <div id="big-win-label">BIG WIN</div>
+    <div id="big-win-amount"></div>
   </div>
 
   <!-- Breach overlay -->
