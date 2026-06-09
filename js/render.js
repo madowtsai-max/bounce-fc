@@ -415,8 +415,8 @@ function spawnEffect(type, x, y, size, delay, alpha) {
   if (!fxLoaded) return;
   state.effects = state.effects || [];
   const cfg = type === 'hit'
-    ? { frames: FX_FRAMES.hit,   size: 36, delay: 2 }
-    : { frames: FX_FRAMES.smoke, size: 80, delay: 3 };
+    ? { frames: FX_FRAMES.hit,   size: 54, delay: 2 }
+    : { frames: FX_FRAMES.smoke, size: 120, delay: 3 };
   state.effects.push({
     frames: cfg.frames, frameIdx: 0, x, y, timer: 0,
     size:  size  ?? cfg.size,
@@ -454,6 +454,7 @@ function drawTrailPuffs() {
 function drawEffects(below) {
   if (!state.effects.length) return;
   ctx.save();
+  ctx.globalCompositeOperation = 'screen';
   state.effects.forEach(fx => {
     if (!!fx.below !== !!below || fx.frameIdx >= fx.frames.length) return;
     const img = fx.frames[fx.frameIdx];
@@ -773,7 +774,7 @@ function drawBall() {
     ctx.fillStyle = '#ffe066';
     state.trail.forEach((p, i) => {
       const t = (i + 1) / state.trail.length;
-      ctx.globalAlpha = t * 0.45;
+      ctx.globalAlpha = t * 0.85;
       ctx.beginPath();
       ctx.arc(p.x, p.y, BALL_R * t * 0.7, 0, Math.PI * 2);
       ctx.fill();
@@ -876,12 +877,11 @@ function drawCombo() {
   ctx.textAlign = 'center';
 
   // Outline
-  ctx.font = 'bold 28px Roboto';
+  ctx.font = '32px Bangers';
   ctx.lineWidth = 4;
   ctx.strokeStyle = 'rgba(0,0,0,0.85)';
   ctx.strokeText(`×${state.hitCombo} HIT`, 0, 0);
 
-  // Fill — gradient gold→orange (swap font/style here later for art font)
   const g = ctx.createLinearGradient(0, -24, 0, 4);
   g.addColorStop(0, '#fff176');
   g.addColorStop(1, '#ff6f00');

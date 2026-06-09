@@ -10,6 +10,15 @@ function comboPayout(kills) {
   return 0.87 + Math.random() * 0.8;                  // x0.87~1.67  (1 kill)
 }
 
+let _bestCombo = 0;
+
+function showDefaultBanner() {
+  if (_bestCombo > 0)
+    setBanner(`Best: ${fmt(_bestCombo)} NGN`, '#F9D418');
+  else
+    setBanner('Bounce FC');
+}
+
 // ── STATE ─────────────────────────────────────────────────
 let state = {};
 
@@ -252,9 +261,12 @@ function stepBall() {
   const b = state.ball;
   b.x += b.vx; b.y += b.vy;
 
-  // Store trail (last 6 positions)
-  state.trail.push({ x: b.x, y: b.y });
-  if (state.trail.length > 6) state.trail.shift();
+  // Store trail — sample every 5px for denser dots
+  const last = state.trail[state.trail.length - 1];
+  if (!last || Math.hypot(b.x - last.x, b.y - last.y) >= 2) {
+    state.trail.push({ x: b.x, y: b.y });
+    if (state.trail.length > 20) state.trail.shift();
+  }
 
   // Wall bounces
   if (b.x - BALL_R < FL) { b.x = FL + BALL_R; b.vx = Math.abs(b.vx);  state.ballSquash = 5; state.wallHits.push({ x: FL, y: b.y, t0: performance.now(), side: 'L' }); }
@@ -296,7 +308,7 @@ function stepBall() {
       state.kills++;
       state.killsThisShot++;
       state.shake = 12;
-      addPopup(r.x + r.w / 2, r.y, `kill!`, '#ff3333', 14);
+      addPopup(r.x + r.w / 2, r.y, `+${Math.round(state.bet * t.payout).toLocaleString()}`, '#F9D418', 16);
       e.dying = true;
       e.hitFlash = 5;
       SFX.kill();
@@ -312,7 +324,6 @@ function stepBall() {
       SFX.hit();
       spawnEffect('hit', cx, cy);
       enemyPlay(e, 'damage');
-      setBanner(`-${dmg} hp! (${e.hp} left)`);
     }
   }
 
@@ -337,8 +348,9 @@ function stepBall() {
       spawnCoins(PLAYER_X, PLAYER_Y - 40, payout);
       const net = payout - state.bet;
       if (net > 0) {
-        setBanner(`+${fmt(net)} NGN`, '#F9D418');
-        state.winBannerMs = 2000;
+        _bestCombo = Math.max(_bestCombo, payout);
+        setBanner(`+${fmt(net)} NGN`, '#F9D418', true);
+        state.winBannerMs = 3000;
       } else {
         setBanner(`${fmt(net)} NGN`);
         state.winBannerMs = 1000;
@@ -441,10 +453,7 @@ function finishAdvance() {
   knightPlay('idle', true);
   const bannerDelay = state.winBannerMs || 0;
   state.winBannerMs = 0;
-  setTimeout(() => {
-    setBanner(`Round ${state.round} — speed ×${(ballSpeed()/BALL_SPEED).toFixed(1)}`);
-    setTimeout(() => { if (state.screen === 'arena') setBanner('Aim & Shoot!'); }, 1200);
-  }, bannerDelay);
+  setTimeout(() => { if (state.screen === 'arena') showDefaultBanner(); }, bannerDelay);
 }
 
 function addPopup(x, y, text, color, fontSize) {
@@ -458,10 +467,12 @@ function enemyPlay(e, anim) {
   if (anim !== 'dead') e.spine.animState.addAnimation(0, 'idle', true, 0);
 }
 
-function setBanner(txt, color) {
-  const el = document.getElementById('banner');
+function setBanner(txt, color, pop) {
+  const el = document.getElementById('banner-text');
   el.textContent = txt;
   el.style.color = color || '#fff';
+  el.classList.remove('pop');
+  if (pop) { void el.offsetWidth; el.classList.add('pop'); }
 }
 
 const BIGWIN_FRAMES = Array.from({length: 17}, (_, i) =>
@@ -594,7 +605,7 @@ function goToBet() {
   showBetUI();
   updateWallet();
   updateBetDisplay();
-  setBanner('Ready');
+  showDefaultBanner();
   document.getElementById('breach').style.display = 'none';
   document.getElementById('bet-confirm').classList.remove('visible');
   document.getElementById('bet-confirm').style.display = 'none';
@@ -605,7 +616,7 @@ function goToArena() {
   state.arenaEnteredAt = performance.now();
   initArena();
   showArenaUI();
-  setBanner('Aim & Shoot!');
+  showDefaultBanner();
   if (knight) {
     knight.x = PLAYER_X;
     knight.targetX = PLAYER_X;
@@ -637,6 +648,7 @@ canvas.addEventListener('pointerdown', e => {
   e.preventDefault();
   const p = getCanvasPos(e);
   state.isAiming = true;
+  setBanner('Aim & Shoot!');
   state.aimX = p.x;
   state.aimY = Math.min(p.y, PLAYER_Y - PLAYER_H - 10);
   knightPlay('aim', true);
@@ -656,7 +668,7 @@ canvas.addEventListener('pointerup', () => {
     state.isAiming  = false;
     state.cancelMode = false;
     knightPlay('idle', true);
-    setBanner('Aim & Shoot!');
+    showDefaultBanner();
     return;
   }
   state.isAiming = false;

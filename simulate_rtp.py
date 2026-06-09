@@ -80,20 +80,11 @@ def simulate_shot(enemies):
     alive = [e for e in enemies if e['hp'] > 0]
     if not alive: return 0
 
-    # Aim at densest column (cluster strategy)
-    col_count = defaultdict(int)
-    for e in alive: col_count[e['col']] += 1
-    best_col = max(col_count, key=col_count.get)
-    col_enemies = [e for e in alive if e['col'] == best_col]
-    target = max(col_enemies, key=lambda e: e['row'])
-
-    aim_x = GRID_LEFT + target['col'] * CELL_W + CELL_W / 2
-    aim_y = ENEMY_START_Y + target['row'] * CELL_H + CELL_H / 2
-
-    dx = aim_x - PLAYER_X; dy = aim_y - PLAYER_Y
-    dist = math.sqrt(dx*dx + dy*dy)
-    vx = dx / dist * BALL_SPEED
-    vy = dy / dist * BALL_SPEED
+    # 45-degree shot — randomly left or right each shot
+    angle_deg = 45 if random.random() < 0.5 else -45
+    angle_rad = math.radians(angle_deg)
+    vx = math.sin(angle_rad) * BALL_SPEED
+    vy = -math.cos(angle_rad) * BALL_SPEED
 
     bx = float(PLAYER_X); by = float(PLAYER_Y)
     kills = 0
